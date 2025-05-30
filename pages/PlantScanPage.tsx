@@ -58,6 +58,17 @@ const PlantScanPage: React.FC = () => {
     { name: 'Unknown Plant', emoji: '🔍' },
   ];
 
+  // Reset selectedPlant when category changes (except for 'Unknown Plant')
+  useEffect(() => {
+    if (activeCategory === 'Unknown Plant') {
+      setSelectedPlant('Unknown Plant');
+      setCustomPrompt('');
+    } else {
+      setSelectedPlant(null);
+      setCustomPrompt('');
+    }
+  }, [activeCategory]);
+
   const getCategoryForPlant = (plant: { name: string; emoji: string; category: string }) => {
     if (mainCategories.some(cat => cat.name === plant.category)) return plant.category;
     return 'All Plants';
@@ -268,14 +279,19 @@ const PlantScanPage: React.FC = () => {
     <div className="container mx-auto px-4 py-8">
       <h2 className="text-3xl font-bold text-green-700 mb-6 text-center capitalize">Plant Identifier</h2>
       <p className="text-gray-600 mb-8 text-center max-w-2xl mx-auto">
-        Select a plant or choose 'Unknown Plant' for identification
+        {activeCategory === 'Unknown Plant' 
+          ? translate('uploadAnyPlantMessage')
+          : translate('selectPlantMessage')}
       </p>
       {/* Category Buttons */}
       <div className="flex flex-wrap justify-center gap-2 mb-4">
         {mainCategories.map(cat => (
           <button
             key={cat.name}
-            onClick={() => { setActiveCategory(cat.name); setSelectedPlant(null); }}
+            onClick={() => { 
+              setActiveCategory(cat.name); 
+              // selectedPlant is now handled by useEffect above
+            }}
             className={`flex items-center gap-2 px-5 py-2 rounded-2xl text-base font-medium shadow-sm border border-green-200 transition-colors
               ${activeCategory === cat.name
                 ? (cat.name === 'Unknown Plant'
@@ -290,68 +306,9 @@ const PlantScanPage: React.FC = () => {
           </button>
         ))}
       </div>
-      {/* Search Bar */}
-      <div className="flex justify-center mb-8">
-        <div className="relative w-full max-w-lg">
-          <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"><FaSearch /></span>
-          <input
-            type="text"
-            value={plantSearch}
-            onChange={e => setPlantSearch(e.target.value)}
-            placeholder="Search plants..."
-            className="w-full p-3 pl-12 border border-gray-300 rounded-full shadow-sm focus:ring-green-500 focus:border-green-500 text-base"
-          />
-        </div>
-      </div>
-      {/* Plant Grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-5 mb-8">
-        {paginatedPlants.map(plant => (
-          <button
-            key={plant.name}
-            onClick={() => {
-              setSelectedPlant(plant.name);
-              setCustomPrompt(plant.name);
-            }}
-            className={`flex items-center gap-3 px-4 py-3 rounded-xl shadow-md border border-gray-200 bg-white transition-all text-left focus:outline-none focus:ring-2 focus:ring-green-500
-              ${selectedPlant === plant.name
-                ? 'ring-2 ring-green-600 bg-green-50 scale-105 text-green-900'
-                : 'hover:bg-green-100 text-green-800'}
-            `}
-            style={{ minHeight: 60, transition: 'transform 0.15s, box-shadow 0.15s', boxShadow: selectedPlant === plant.name ? '0 8px 24px rgba(34,197,94,0.15)' : '0 2px 8px rgba(0,0,0,0.04)' }}
-          >
-            <span className="text-2xl">{plant.emoji}</span>
-            <span className="truncate w-full font-medium text-base">{plant.name}</span>
-          </button>
-        ))}
-        {filteredPlants.length === 0 && (
-          <div className="col-span-full text-center text-gray-500 text-sm">No plants found for this category/search.</div>
-        )}
-      </div>
-      {/* Pagination Controls */}
-      {totalPages > 1 && (
-        <div className="flex justify-center items-center gap-4 mb-8">
-          <button
-            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-            disabled={currentPage === 1}
-            className="px-4 py-2 rounded-lg bg-green-100 text-green-800 font-semibold shadow hover:bg-green-200 disabled:opacity-50"
-          >
-            Previous
-          </button>
-          <span className="text-green-900 font-medium">Page {currentPage} of {totalPages}</span>
-          <button
-            onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-            disabled={currentPage === totalPages}
-            className="px-4 py-2 rounded-lg bg-green-100 text-green-800 font-semibold shadow hover:bg-green-200 disabled:opacity-50"
-          >
-            Next
-          </button>
-        </div>
-      )}
-      {filteredPlants.length > PLANTS_PER_PAGE && (
-        <div className="text-center text-gray-500 text-sm mb-4">Showing {paginatedPlants.length} of {filteredPlants.length} plants. Use search or next page to see more.</div>
-      )}
-      {/* Only show upload/scan UI after plant is selected */}
-      {selectedPlant && (
+      {/* Content based on selected category and plant selection */}
+      {(selectedPlant || activeCategory === 'Unknown Plant') ? (
+        // Show upload/scan UI for selected plant or Unknown Plant
         <>
           {error && !diagnosis?.error && <Alert type="error" message={error} onClose={() => setError(null)} />}
           <Card className="mb-8">
@@ -372,7 +329,7 @@ const PlantScanPage: React.FC = () => {
                 <h3 className="text-xl font-semibold text-green-700 mb-3 capitalize">Advanced Options (Optional)</h3>
                 <div className="flex items-center gap-2 mb-2">
                   <textarea
-                    value={customPrompt}
+                    value={customPrompt || (selectedPlant && selectedPlant !== 'Unknown Plant' ? selectedPlant : '')}
                     onChange={(e) => setCustomPrompt(e.target.value)}
                     placeholder={translate('customPromptPlaceholder') + ` ` + translate('defaultPromptExample', {default: defaultPromptTextForPlaceholder.substring(0,100) + "..."})}
                     rows={4}
@@ -408,9 +365,9 @@ const PlantScanPage: React.FC = () => {
                 <p className="text-xs text-gray-500 mt-1">
                   {translate('customPromptExampleText')}
                 </p>
-                {customPrompt && (
+                {(customPrompt || (selectedPlant && selectedPlant !== 'Unknown Plant')) && (
                   <button
-                    onClick={() => speakWithCloudTTS(customPrompt, selectedLang, 'question')}
+                    onClick={() => speakWithCloudTTS(customPrompt || selectedPlant || '', selectedLang, 'question')}
                     className={`mt-2 p-2 rounded-full ${speakActive === 'question' ? 'bg-yellow-400 text-white' : 'bg-blue-500 text-white hover:bg-blue-600'} transition-colors`}
                     title="Speak question"
                     aria-label="Speak question"
@@ -439,6 +396,70 @@ const PlantScanPage: React.FC = () => {
               </div>
             )}
           </Card>
+        </>
+      ) : (
+        // Show plant grid if no plant is selected
+        <>
+          {/* Search Bar */}
+          <div className="flex justify-center mb-8">
+            <div className="relative w-full max-w-lg">
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"><FaSearch /></span>
+              <input
+                type="text"
+                value={plantSearch}
+                onChange={e => setPlantSearch(e.target.value)}
+                placeholder="Search plants..."
+                className="w-full p-3 pl-12 border border-gray-300 rounded-full shadow-sm focus:ring-green-500 focus:border-green-500 text-base"
+              />
+            </div>
+          </div>
+          {/* Plant Grid */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-5 mb-8">
+            {paginatedPlants.map(plant => (
+              <button
+                key={plant.name}
+                onClick={() => {
+                  setSelectedPlant(plant.name);
+                  setCustomPrompt(plant.name);
+                }}
+                className={`flex items-center gap-3 px-4 py-3 rounded-xl shadow-md border border-gray-200 bg-white transition-all text-left focus:outline-none focus:ring-2 focus:ring-green-500
+                  ${selectedPlant === plant.name
+                    ? 'ring-2 ring-green-600 bg-green-50 scale-105 text-green-900'
+                    : 'hover:bg-green-100 text-green-800'}
+                `}
+                style={{ minHeight: 60, transition: 'transform 0.15s, box-shadow 0.15s', boxShadow: selectedPlant === plant.name ? '0 8px 24px rgba(34,197,94,0.15)' : '0 2px 8px rgba(0,0,0,0.04)' }}
+              >
+                <span className="text-2xl">{plant.emoji}</span>
+                <span className="truncate w-full font-medium text-base">{plant.name}</span>
+              </button>
+            ))}
+            {filteredPlants.length === 0 && (
+              <div className="col-span-full text-center text-gray-500 text-sm">No plants found for this category/search.</div>
+            )}
+          </div>
+          {/* Pagination Controls */}
+          {totalPages > 1 && (
+            <div className="flex justify-center items-center gap-4 mb-8">
+              <button
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className="px-4 py-2 rounded-lg bg-green-100 text-green-800 font-semibold shadow hover:bg-green-200 disabled:opacity-50"
+              >
+                Previous
+              </button>
+              <span className="text-green-900 font-medium">Page {currentPage} of {totalPages}</span>
+              <button
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+                className="px-4 py-2 rounded-lg bg-green-100 text-green-800 font-semibold shadow hover:bg-green-200 disabled:opacity-50"
+              >
+                Next
+              </button>
+            </div>
+          )}
+          {filteredPlants.length > PLANTS_PER_PAGE && (
+            <div className="text-center text-gray-500 text-sm mb-4">Showing {paginatedPlants.length} of {filteredPlants.length} plants. Use search or next page to see more.</div>
+          )}
         </>
       )}
       {isLoading && !diagnosis && <LoadingSpinner text={translate('analyzingPlant')} />}
