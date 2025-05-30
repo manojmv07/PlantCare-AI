@@ -98,3 +98,16 @@ export interface RouteInfo {
   distance: string;
   duration: string;
 }
+
+export interface FertPestQuantityItem {
+  name: string;
+  per_acre: number; // quantity per acre (decimal)
+  unit: string; // e.g., 'kg', 'L'
+  total: number; // total for all acres (decimal)
+}
+
+export interface FertPestQuantitiesAIResponse {
+  fertilizers: FertPestQuantityItem[];
+  pesticides: FertPestQuantityItem[];
+  error?: string;
+}

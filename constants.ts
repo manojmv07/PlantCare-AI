@@ -56,7 +56,7 @@ export const PLANT_CATEGORIES: PlantCategory[] = [
   { name: "Cauliflower", emoji: "🥦" }, // Using broccoli
   { name: "Radish", emoji: "🥕" }, // Using carrot for root veg
   { name: "Sweet Potato", emoji: "🍠" },
-  { name: "Asparagus", emoji: " asparagus "}, // Text for now
+  { name: "Asparagus", emoji: "🥬" }, // Leafy green for asparagus
   { name: "Celery", emoji: "🥬" }, // Using lettuce/spinach
   { name: "Mushroom", emoji: "🍄" }, // Fungi
   { name: "Corn (Maize)", emoji: "🌽" },
@@ -97,7 +97,7 @@ export const PLANT_CATEGORIES: PlantCategory[] = [
   { name: "Oats", emoji: "🌾" },
   { name: "Barley", emoji: "🌾" },
   { name: "Rye", emoji: "🌾" },
-  { name: "Quinoa", emoji: " अनाज "}, // Text for now
+  { name: "Quinoa", emoji: "🌾" }, // Grain for quinoa
   { name: "Millet", emoji: "🌾" },
   // Spices (from plants)
   { name: "Chilli Pepper", emoji: "🌶️" },
@@ -214,7 +214,7 @@ export const PLANT_LIST: { name: string; emoji: string; category: string }[] = [
   { name: "Cauliflower", emoji: "🥦", category: "Vegetables" },
   { name: "Radish", emoji: "🥕", category: "Vegetables" },
   { name: "Sweet Potato", emoji: "🍠", category: "Vegetables" },
-  { name: "Asparagus", emoji: "🥦", category: "Vegetables" },
+  { name: "Asparagus", emoji: "🥬", category: "Vegetables" },
   { name: "Celery", emoji: "🥬", category: "Vegetables" },
   { name: "Mushroom", emoji: "🍄", category: "Vegetables" },
   { name: "Corn (Maize)", emoji: "🌽", category: "Vegetables" },
@@ -262,7 +262,7 @@ export const PLANT_LIST: { name: string; emoji: string; category: string }[] = [
   { name: "Barley", emoji: "🌾", category: "Cereals & Millets" },
   { name: "Oats", emoji: "🌾", category: "Cereals & Millets" },
   { name: "Rye", emoji: "🌾", category: "Cereals & Millets" },
-  { name: "Quinoa", emoji: "🍚", category: "Cereals & Millets" },
+  { name: "Quinoa", emoji: "🌾", category: "Cereals & Millets" },
   { name: "Millet", emoji: "🌾", category: "Cereals & Millets" },
   { name: "Sorghum", emoji: "🌾", category: "Cereals & Millets" },
   { name: "Maize", emoji: "🌽", category: "Cereals & Millets" },

@@ -185,7 +185,7 @@ export const translations: LanguagePack = {
     searchFor: "ಹುಡುಕಿ",
     language: "ಭಾಷೆ",
     selectLanguage: "ಭಾಷೆಯನ್ನು ಆಯ್ಕೆಮಾಡಿ",
-    selectPlantMessage: "ಸಸ್ಯಗಳ ಪ್ರಾಂಪ್ಟ್ ಪಟ್ಟಿಯಲ್ಲಿಂತ ಆಯ್ಕೆಮಾಡಿ ಮತ್ತು ಪ್ರಯತ್ನಿಸಿ!",
+    selectPlantMessage: "ಸಸ್ಯಗಳ ಪಟ್ಟಿಯಿಂದ ಒಂದು ಆಯ್ಕೆಮಾಡಿ ಪ್ರಾರಂಭಿಸಿ!",
 
     // Nav
     navHome: "ಮುಖಪುಟ",
@@ -199,7 +199,7 @@ export const translations: LanguagePack = {
 
     // Landing Page
     appCatchphrase: "ಆರೋಗ್ಯಕರ ಸಸ್ಯಗಳನ್ನು ಪೋಷಿಸಲು ನಿಮ್ಮ ಬುದ್ಧಿವಂತ ಪಾಲುದಾರ. AI ಬಳಸಿ ರೋಗನಿರ್ಣಯ ಮಾಡಿ, ಕಲಿಯಿರಿ ಮತ್ತು ವಿಶ್ವಾಸದಿಂದ ಬೆಳೆಯಿರಿ.",
-    featureScanTitle: "ತక్షణ ಸಸ್ಯ ಆರೋಗ್ಯ ಸ್ಕ್ಯಾನ್",
+    featureScanTitle: "ತಕ್ಷಣ ಸಸ್ಯ ಆರೋಗ್ಯ ಸ್ಕ್ಯಾನ್",
     featureScanDesc: "ಫೋಟೋ ಅಪ್‌ಲೋಡ್ ಮಾಡಿ ಮತ್ತು ನಿಮ್ಮ ಸಸ್ಯಕ್ಕಾಗಿ AI-ಚಾಲಿತ ಆರೋಗ್ಯ ರೋಗನಿರ್ಣಯ ಮತ್ತು ಆರೈಕೆ ಸಲಹೆಗಳನ್ನು ಸೆಕೆಂಡುಗಳಲ್ಲಿ ಪಡೆಯಿರಿ.",
     featureEncyclopediaTitle: "ಸಸ್ಯ ವಿಶ್ವಕೋಶ",
     featureEncyclopediaDesc: "ಸಸ್ಯಗಳ ವಿಶಾಲವಾದ ಡೇಟಾಬೇಸ್ ಅನ್ನು ಹುಡುಕಿ ಮತ್ತು ಅನ್ವೇಷಿಸಿ. ಆರೈಕೆ, ಸೂರ್ಯನ ಬೆಳಕು, ನೀರುಹಾಕುವುದು ಮತ್ತು ಹೆಚ್ಚಿನವುಗಳ ಬಗ್ಗೆ ವಿವರವಾದ ಮಾಹಿತಿಯನ್ನು ಪಡೆಯಿರಿ.",
@@ -211,15 +211,15 @@ export const translations: LanguagePack = {
     featureScanHistoryDesc: "ನಿಮ್ಮ ಹಿಂದಿನ ಸಸ್ಯ ಸ್ಕ್ಯಾನ್‌ಗಳನ್ನು ಟ್ರ್ಯಾಕ್ ಮಾಡಿ. ಯಾವುದೇ ಸಮಯದಲ್ಲಿ ರೋಗನಿರ್ಣಯ ಮತ್ತು ಆರೈಕೆ ಸಲಹೆಗಳನ್ನು ಮರುಭೇಟಿ ಮಾಡಿ.",
     featureCommunityHubTitle: "ಗ್ರೀನ್‌ಗ್ರಾಮ್ ಸಮುದಾಯ",
     featureCommunityHubDesc: "ನಿಮ್ಮ ಸಸ್ಯಗಳ ಫೋಟೋಗಳನ್ನು ಹಂಚಿಕೊಳ್ಳಿ, AI-ರಚಿಸಿದ ಶೀರ್ಷಿಕೆಗಳನ್ನು ಪಡೆಯಿರಿ ಮತ್ತು ಸಹ ಸಸ್ಯ ಪ್ರಿಯರೊಂದಿಗೆ ಸಂಪರ್ಕ ಸಾಧಿಸಿ.",
-
+    
     // Plant Scan Page
-    plantScanTitle: "ತక్షణ ಸಸ್ಯ ಆರೋಗ್ಯ ಸ್ಕ್ಯಾನ್",
+    plantScanTitle: "ತಕ್ಷಣ ಸಸ್ಯ ಆರೋಗ್ಯ ಸ್ಕ್ಯಾನ್",
     plantScanDescription: "ನಿಮ್ಮ ಸಸ್ಯದ ಫೋಟೋವನ್ನು ಅಪ್‌ಲೋಡ್ ಮಾಡಿ ಅಥವಾ ಡ್ರ್ಯಾಗ್ ಮತ್ತು ಡ್ರಾಪ್ ಮಾಡಿ. ನಮ್ಮ AI ಅದರ ಆರೋಗ್ಯವನ್ನು ವಿಶ್ಲೇಷಿಸುತ್ತದೆ ಮತ್ತು ಆರೈಕೆ ಸಲಹೆಗಳನ್ನು ನೀಡುತ್ತದೆ.",
     uploadImagePrompt: "ಸಸ್ಯದ ಚಿತ್ರವನ್ನು ಅಪ್‌ಲೋಡ್ ಮಾಡಿ",
     advancedOptions: "ಸುಧಾರಿತ ಆಯ್ಕೆಗಳು (ಐಚ್ಛಿಕ)",
     customPromptPlaceholder: "ಕಸ್ಟಮ್ ಪ್ರಾಂಪ್ಟ್ ನಮೂದಿಸಿ, ಅಥವಾ ಡೀಫಾಲ್ಟ್‌ಗಾಗಿ ಖಾಲಿ ಬಿಡಿ.",
     defaultPromptExample: "ಉದಾಹರಣೆ: \"ಈ ಟೊಮೇಟೊ ಎಲೆಯ ಪೋಷಕಾಂಶಗಳ ಕೊರತೆಗಳ ಮೇಲೆ ಗಮನಹರಿಸಿ.\"",
-    customPromptExampleText: "ಉದಾಹರಣೆಗೆ: \"ಇದು ಯಾವ ರೀತಿಯ ಕೀಟ?\", \"ಇದು ಸಾಮಾನ್ಯವಾಗಿ ಹೂಬಿಡುತ್ತಿದೆಯೇ?\"",
+    customPromptExampleText: "ಉದಾ: \"ಇದು ಯಾವ ರೀತಿಯ ಕೀಟ?\", \"ಇದು ಸಾಮಾನ್ಯವಾಗಿ ಹೂಬಿಡುತ್ತಿದೆಯೇ?\"",
     scanPlantButton: "ಸಸ್ಯದ ಆರೋಗ್ಯವನ್ನು ಸ್ಕ್ಯಾನ್ ಮಾಡಿ",
     scanningButton: "ಸ್ಕ್ಯಾನ್ ಮಾಡಲಾಗುತ್ತಿದೆ...",
     aiDiagnosisTitle: "AI ರೋಗನಿರ್ಣಯ ಮತ್ತು ಆರೈಕೆ ಸಲಹೆಗಳು",
@@ -231,7 +231,7 @@ export const translations: LanguagePack = {
     statusUnknown: "ಅಪರಿಚಿತ",
     diseaseIssue: "ರೋಗ/ಸಮಸ್ಯೆ",
     careSuggestions: "ಆರೈಕೆ ಸಲಹೆಗಳು",
-    confidence: "ವಿಶ್ವಾಸಾರ್ಹತೆ",
+    confidence: "ವಿಶ್ವಾಸ",
     speakDiagnosis: "ರೋಗನಿರ್ಣಯವನ್ನು ಮಾತನಾಡಿ",
     errorPleaseUploadImage: "ದಯವಿಟ್ಟು ಮೊದಲು ಚಿತ್ರವನ್ನು ಅಪ್‌ಲೋಡ್ ಮಾಡಿ.",
     errorNotAPlant: "ಅಪ್‌ಲೋಡ್ ಮಾಡಿದ ಚಿತ್ರವು ಸಸ್ಯವೆಂದು ಕಂಡುಬರುತ್ತಿಲ್ಲ, ಅಥವಾ ಸಸ್ಯವನ್ನು ಗುರುತಿಸಲಾಗಲಿಲ್ಲ. ದಯವಿಟ್ಟು ಸ್ಪಷ್ಟವಾದ ಚಿತ್ರವನ್ನು ಪ್ರಯತ್ನಿಸಿ.",
@@ -262,12 +262,12 @@ export const translations: LanguagePack = {
     uploadFile: "ಫೈಲ್ ಅಪ್‌ಲೋಡ್ ಮಾಡಿ",
     dragAndDrop: "ಅಥವಾ ಡ್ರ್ಯಾಗ್ ಮತ್ತು ಡ್ರಾಪ್ ಮಾಡಿ",
     pasteFromClipboard: "ಅಥವಾ ಕ್ಲಿಪ್‌ಬೋರ್ಡ್‌ನಿಂದ ಚಿತ್ರವನ್ನು ಅಂಟಿಸಿ",
-    fileTypes: "PNG, JPG, GIF 5MB ವರೆಗೆ",
+    fileTypes: "PNG, JPG, GIF 30MB ವರೆಗೆ",
     clearImage: "ಚಿತ್ರವನ್ನು ತೆರವುಗೊಳಿಸಿ",
     imagePreviewAlt: "ಚಿತ್ರ ಪೂರ್ವವೀಕ್ಷಣೆ",
     imageUploadArea: "ಚಿತ್ರ ಅಪ್‌ಲೋಡ್ ಪ್ರದೇಶ: ಅಪ್‌ಲೋಡ್ ಮಾಡಲು ಕ್ಲಿಕ್ ಮಾಡಿ, ಡ್ರ್ಯಾಗ್ ಮತ್ತು ಡ್ರಾಪ್ ಮಾಡಿ, ಅಥವಾ ಚಿತ್ರವನ್ನು ಅಂಟಿಸಿ",
     errorImageFile: "ದಯವಿಟ್ಟು ಚಿತ್ರ ಫೈಲ್ ಆಯ್ಕೆಮಾಡಿ (ಉದಾ., JPG, PNG, GIF).",
-    errorFileSize: "ಫೈಲ್ ಗಾತ್ರ 5MB ಮೀರಿದೆ. ದಯವಿಟ್ಟು ಚಿಕ್ಕ ಚಿತ್ರವನ್ನು ಆಯ್ಕೆಮಾಡಿ.",
+    errorFileSize: "ಫೈಲ್ ಗಾತ್ರ 30MB ಮೀರಿದೆ. ದಯವಿಟ್ಟು ಚಿಕ್ಕ ಚಿತ್ರವನ್ನು ಆಯ್ಕೆಮಾಡಿ.",
 
     // TTS
     ttsUnsupported: "ನಿಮ್ಮ ಬ್ರೌಸರ್‌ನಲ್ಲಿ ಪಠ್ಯದಿಂದ ಭಾಷಣವನ್ನು ಬೆಂಬಲಿಸುವುದಿಲ್ಲ.",

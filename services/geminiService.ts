@@ -1,6 +1,6 @@
 import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
 import { GEMINI_TEXT_MODEL, GEMINI_VISION_MODEL } from '../constants';
-import { PlantDiagnosis, ImagePart, EncyclopediaEntry, CropInsight, FarmingAdvice } from '../types';
+import { PlantDiagnosis, ImagePart, EncyclopediaEntry, CropInsight, FarmingAdvice, FertPestQuantitiesAIResponse, WeatherData } from '../types';
 
 const API_KEY = process.env.GEMINI_API_KEY || '';
 
@@ -18,22 +18,26 @@ const parseJsonFromGeminiResponse = <T,>(text: string): T | { error: string } =>
   if (fenceMatch && fenceMatch[2]) {
     jsonStr = fenceMatch[2].trim();
   }
-  // Try to extract the first JSON object from the text, even if multiple are present
-  const jsonMatches = [...jsonStr.matchAll(/\{[\s\S]*?\}/g)];
-  if (jsonMatches && jsonMatches.length > 0) {
-    jsonStr = jsonMatches[0][0];
-  } else {
-    // fallback: try to extract the first JSON array
-    const arrayMatch = jsonStr.match(/\[[\s\S]*?\]/);
-    if (arrayMatch) {
-      jsonStr = arrayMatch[0];
-    }
+  // --- Sanitize: Remove trailing commas before } or ] ---
+  jsonStr = jsonStr.replace(/,\s*([}\]])/g, '$1');
+  // Try to extract the first JSON object or array from anywhere in the text
+  const objMatch = jsonStr.match(/\{[\s\S]*\}/);
+  const arrMatch = jsonStr.match(/\[[\s\S]*\]/);
+  if (objMatch) {
+    jsonStr = objMatch[0];
+  } else if (arrMatch) {
+    jsonStr = arrMatch[0];
   }
   try {
     return JSON.parse(jsonStr) as T;
   } catch (e) {
-    console.error("Failed to parse JSON response:", e, "Original text:", text);
-    return { error: `Failed to parse AI response. The response might not be valid JSON.\n---\n${text}` };
+    // As a fallback, try to parse the original text (in case it's pure JSON)
+    try {
+      return JSON.parse(text) as T;
+    } catch (e2) {
+      console.error("Failed to parse JSON response:", e, "Original text:", text);
+      return { error: `Failed to parse AI response. The response might not be valid JSON.\n---\n${text}` };
+    }
   }
 };
 
@@ -222,6 +226,36 @@ export const generateCaptionForImage = async (imageBase64: string, mimeType: str
     return { 
       caption: "",
       error: `Error from AI: ${error instanceof Error ? error.message : String(error)}`, 
+    };
+  }
+};
+
+export const getFertPestQuantitiesAI = async (
+  crop: string,
+  district: string,
+  month: string,
+  weather: WeatherData,
+  acres: number
+): Promise<FertPestQuantitiesAIResponse> => {
+  const defaultReturn: FertPestQuantitiesAIResponse = { fertilizers: [], pesticides: [] };
+  if (!API_KEY) return { ...defaultReturn, error: "API Key not configured." };
+  try {
+    const prompt = `You are an expert agricultural advisor. For the following context, recommend the best fertilizers and pesticides for the crop, and specify the recommended quantity per acre (in decimals, not just whole numbers, and in appropriate units like kg or L). Also, calculate the total quantity for ${acres} acres. Respond in JSON as:\n{\n  \"fertilizers\": [{\"name\": \"...\", \"per_acre\": ..., \"unit\": \"...\", \"total\": ...}],\n  \"pesticides\": [{\"name\": \"...\", \"per_acre\": ..., \"unit\": \"...\", \"total\": ...}]\n}\nContext:\nCrop: ${crop}\nDistrict: ${district}\nMonth: ${month}\nWeather: ${JSON.stringify(weather)}\n`;
+    const response: GenerateContentResponse = await ai.models.generateContent({
+      model: GEMINI_TEXT_MODEL,
+      contents: prompt,
+      config: { responseMimeType: "application/json" }
+    });
+    const parsedResult = parseJsonFromGeminiResponse<FertPestQuantitiesAIResponse>(response.text || "");
+    if (!('fertilizers' in parsedResult) || !('pesticides' in parsedResult)) {
+      return { ...defaultReturn, error: (parsedResult as { error: string }).error || "AI service returned an unspecified error." };
+    }
+    return parsedResult as FertPestQuantitiesAIResponse;
+  } catch (error) {
+    console.error("Error fetching AI fertilizer/pesticide quantities:", error);
+    return {
+      ...defaultReturn,
+      error: `Error from AI: ${error instanceof Error ? error.message : String(error)}`,
     };
   }
 };

@@ -22,7 +22,7 @@ const initialSearchCategories: MapSearchCategory[] = [
 
 const MAP_DEFAULT_ZOOM = 12;
 const SEARCH_RADIUS_METERS = 10000; // 10km
-const MAP_DEFAULT_LOCATION = { lat: 12.9716, lng: 77.5946 }; // Bangalore
+const MAP_DEFAULT_LOCATION = { lat: 13.3506, lng: 77.7256 }; // Nagarjuna College of Engineering
 
 // Add emoji icons for categories
 const categoryIcons: Record<string, string> = {
@@ -35,6 +35,18 @@ const categoryIcons: Record<string, string> = {
   agri_consultants: '👨‍🌾',
   soil_testing: '🧬',
   warehousing: '🏬',
+};
+
+// Add map styles
+const MAP_STYLES = {
+  default: undefined,
+  dark: [
+    { elementType: 'geometry', stylers: [{ color: '#242f3e' }] },
+    { elementType: 'labels.text.stroke', stylers: [{ color: '#242f3e' }] },
+    { elementType: 'labels.text.fill', stylers: [{ color: '#746855' }] },
+    // ... (add more dark style rules as needed)
+  ],
+  satellite: 'satellite',
 };
 
 const FarmerConnectPage: React.FC = () => {
@@ -60,6 +72,22 @@ const FarmerConnectPage: React.FC = () => {
   const [results, setResults] = useState<any[]>([]);
   const [activeMarkerIndex, setActiveMarkerIndex] = useState<number | null>(null);
   const [selectedPlace, setSelectedPlace] = useState<any | null>(null);
+  const [distanceMatrixResults, setDistanceMatrixResults] = useState<Record<string, { distance: string, duration: string }> | {}>({});
+  const [mapStyle, setMapStyle] = useState<'default' | 'dark' | 'satellite'>('default');
+  const [favorites, setFavorites] = useState<any[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem('fcFavorites') || '[]');
+    } catch {
+      return [];
+    }
+  });
+  const [showStreetView, setShowStreetView] = useState(false);
+  const [streetViewPosition, setStreetViewPosition] = useState<google.maps.LatLngLiteral | null>(null);
+  const [geofence, setGeofence] = useState<{ center: google.maps.LatLngLiteral, radius: number } | null>(null);
+  const [isInsideGeofence, setIsInsideGeofence] = useState<boolean | null>(null);
+  const [showAlternatives, setShowAlternatives] = useState(false);
+  const [showFavoritesModal, setShowFavoritesModal] = useState(false);
+  const [loadingRoute, setLoadingRoute] = useState(false);
 
   const clearMarkers = useCallback(() => {
     placeMarkersRef.current.forEach(marker => {
@@ -107,15 +135,32 @@ const FarmerConnectPage: React.FC = () => {
       // Directions services
       if (window.google.maps.DirectionsService && window.google.maps.DirectionsRenderer) {
         if (!directionsServiceRef.current) directionsServiceRef.current = new window.google.maps.DirectionsService();
-        if (!directionsRendererRef.current) directionsRendererRef.current = new window.google.maps.DirectionsRenderer();
+        if (!directionsRendererRef.current) {
+          directionsRendererRef.current = new window.google.maps.DirectionsRenderer({
+            polylineOptions: {
+              strokeColor: '#1a73e8',
+              strokeOpacity: 0.9,
+              strokeWeight: 6,
+            },
+            suppressMarkers: false,
+          });
+        }
         directionsRendererRef.current.setMap(mapInstanceRef.current);
+      }
+      if (mapInstanceRef.current) {
+        if (mapStyle === 'satellite') {
+          mapInstanceRef.current.setMapTypeId('satellite');
+        } else {
+          mapInstanceRef.current.setMapTypeId('roadmap');
+          mapInstanceRef.current.setOptions({ styles: mapStyle === 'dark' ? MAP_STYLES.dark : undefined });
+        }
       }
       setLoadingLocation(false);
     } else {
       setError(translate('fcErrorNoGoogleMaps'));
       setLoadingLocation(false);
     }
-  }, [translate]);
+  }, [translate, mapStyle]);
 
   useEffect(() => {
     const handleMapsApiLoaded = () => {
@@ -137,29 +182,6 @@ const FarmerConnectPage: React.FC = () => {
       initMap(currentLocation);
     }
   }, [isMapApiLoaded, initMap, currentLocation]);
-
-  // Try to get geolocation, but never block map rendering
-  useEffect(() => {
-    if (!isMapApiLoaded) return;
-    if (!navigator.geolocation) {
-      setError(translate('fcErrorLocation'));
-      setLoadingLocation(false);
-      return;
-    }
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const loc = { lat: position.coords.latitude, lng: position.coords.longitude };
-        setCurrentLocation(loc);
-        initMap(loc);
-        setLoadingLocation(false);
-      },
-      (err) => {
-        setError(translate('fcErrorLocation') + ` (${err.message}) ` + translate('fcEnableHighAccuracy'));
-        setLoadingLocation(false);
-      },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-    );
-  }, [isMapApiLoaded, initMap, translate]);
 
   // Initialize Google Places Autocomplete
   useEffect(() => {
@@ -192,15 +214,22 @@ const FarmerConnectPage: React.FC = () => {
         return;
     }
 
-    setLoadingServices(true); 
+    setLoadingServices(true);
+    setLoadingRoute(true);
     directionsServiceRef.current.route({
         origin: currentLocation,
         destination: destination,
         travelMode: window.google.maps.TravelMode.DRIVING,
+        provideRouteAlternatives: showAlternatives,
     }, (response, status) => {
         setLoadingServices(false);
+        setLoadingRoute(false);
         if (status === window.google.maps.DirectionsStatus.OK && response) {
             directionsRendererRef.current!.setDirections(response);
+            // Pan/zoom to fit route
+            if (mapInstanceRef.current && response.routes[0].bounds) {
+                mapInstanceRef.current.fitBounds(response.routes[0].bounds);
+            }
             const route = response.routes[0];
             if (route && route.legs && route.legs[0]) {
                 setRouteInfo({
@@ -209,7 +238,7 @@ const FarmerConnectPage: React.FC = () => {
                 });
             }
         } else {
-            setError(translate('fcErrorRouteNotFound'));
+            setError(translate('fcErrorRouteNotFound') + ` (${status})`);
             setRouteInfo(null);
         }
     });
@@ -227,6 +256,7 @@ const FarmerConnectPage: React.FC = () => {
     clearDirections();
     setResults([]);
     setActiveMarkerIndex(null);
+    setDistanceMatrixResults({});
 
     const placesService = new window.google.maps.places.PlacesService(mapInstanceRef.current);
     const request: google.maps.places.TextSearchRequest = {
@@ -243,6 +273,48 @@ const FarmerConnectPage: React.FC = () => {
             if (status === window.google.maps.places.PlacesServiceStatus.OK && results) {
                 setResults(results);
                 if (results.length > 0) {
+                    const newDistanceMatrixResults: Record<string, { distance: string, duration: string }> = {};
+                    // Fetch distance matrix for results
+                    const distanceMatrixService = new window.google.maps.DistanceMatrixService();
+                    // Filter out results without location geometry before creating destinations array
+                    const validResults = results.filter(p => p.geometry?.location !== undefined);
+                    const origins = [currentLocation];
+                    const destinations = validResults.map(p => p.geometry!.location!) as google.maps.LatLng[];
+
+                    if (destinations.length > 0) {
+                        distanceMatrixService.getDistanceMatrix({
+                            origins: origins,
+                            destinations: destinations,
+                            travelMode: google.maps.TravelMode.DRIVING,
+                            unitSystem: google.maps.UnitSystem.METRIC, // Or IMPERIAL, depending on preference
+                        }, (matrixResponse, matrixStatus) => {
+                            if (matrixStatus === google.maps.DistanceMatrixStatus.OK && matrixResponse?.rows[0]?.elements) {
+                                matrixResponse.rows[0].elements.forEach((element, index) => {
+                                    const correspondingResult = validResults[index];
+                                    if (element.status === 'OK' && correspondingResult?.place_id) {
+                                        newDistanceMatrixResults[correspondingResult.place_id] = {
+                                            distance: element.distance?.text || 'N/A',
+                                            duration: element.duration?.text || 'N/A',
+                                        };
+                                    } else if (correspondingResult?.place_id) {
+                                         newDistanceMatrixResults[correspondingResult.place_id] = { distance: 'N/A', duration: 'N/A' };
+                                        console.error(`Distance Matrix Error for ${correspondingResult.name || 'a result'}: `, element.status);
+                                    }
+                                });
+                                setDistanceMatrixResults(newDistanceMatrixResults);
+                            } else {
+                                console.error('Distance Matrix Error:', matrixStatus);
+                                // Only set error if it's not a ZERO_RESULTS status, which is handled by performSearch
+                                if (matrixStatus && (matrixStatus as string) !== 'ZERO_RESULTS') {
+                                  setError(translate('fcErrorDistanceMatrix') + `: ${matrixStatus}`);
+                                }
+                            }
+                        });
+                    } else {
+                        // No valid destinations to calculate distance matrix
+                         setDistanceMatrixResults({});
+                    }
+
                     results.forEach((p, idx) => {
                         if (p.geometry?.location) {
                             const marker = new window.google.maps.marker.AdvancedMarkerElement({
@@ -256,21 +328,58 @@ const FarmerConnectPage: React.FC = () => {
                                 if(infoWindowRef.current) infoWindowRef.current.close();
                                 const infoWindowContent = document.createElement('div');
                                 infoWindowContent.className = 'p-2 max-w-xs';
-                                infoWindowContent.innerHTML = `
-                                    <h3 class="font-semibold text-md text-green-700">${p.name || 'N/A'}</h3>
-                                    <p class="text-sm text-gray-600">${p.formatted_address || translate('addressNotAvailable')}</p>
-                                    ${p.rating ? `<p class="text-sm text-gray-600">${translate('rating')}: ${p.rating} (${p.user_ratings_total || 0} ${translate('reviews')})</p>` : ''}
-                                    ${p.business_status ? `<p class="text-sm text-gray-600">${translate('status')}: ${p.business_status}</p>` : ''}
-                                `;
-                                if (directionsServiceRef.current && directionsRendererRef.current) {
-                                    const directionsButton = document.createElement('button');
-                                    directionsButton.className = "mt-2 px-3 py-1 bg-green-500 text-white text-xs rounded hover:bg-green-600";
-                                    directionsButton.textContent = translate('fcShowRoute');
-                                    directionsButton.onclick = () => fetchDirections(p.geometry!.location!);
-                                    infoWindowContent.appendChild(directionsButton);
-                                }
-                                infoWindowRef.current = new window.google.maps.InfoWindow({ content: infoWindowContent });
-                                infoWindowRef.current.open(mapInstanceRef.current!, marker);
+
+                                // Fetch place details including photos
+                                const placesService = new window.google.maps.places.PlacesService(mapInstanceRef.current!);
+                                placesService.getDetails({
+                                    placeId: p.place_id!,
+                                    fields: ['name', 'formatted_address', 'rating', 'user_ratings_total', 'business_status', 'international_phone_number', 'website', 'opening_hours', 'photos', 'geometry']
+                                }, (placeDetails, detailsStatus) => {
+                                    if (detailsStatus === window.google.maps.places.PlacesServiceStatus.OK && placeDetails) {
+                                        infoWindowContent.innerHTML = `
+                                            <h3 class="font-semibold text-md text-green-700">${placeDetails.name || 'N/A'}</h3>
+                                            ${placeDetails.photos && placeDetails.photos.length > 0 ?
+                                                `<div class="mt-2 mb-2 overflow-x-auto flex space-x-2 pb-2">
+                                                    ${placeDetails.photos.slice(0, 5).map(photo =>
+                                                        `<img src="${photo.getUrl({ maxWidth: 100, maxHeight: 100 })}" class="h-20 w-20 object-cover rounded-md shadow-md" alt="Place photo"/>`
+                                                    ).join('')}
+                                                </div>` : ''}
+                                            <p class="text-sm text-gray-600">${placeDetails.formatted_address || translate('addressNotAvailable')}</p>
+                                            ${placeDetails.rating ? `<p class="text-sm text-gray-600">${translate('rating')}: ${placeDetails.rating} (${placeDetails.user_ratings_total || 0} ${translate('reviews')})</p>` : ''}
+                                            ${placeDetails.business_status ? `<p class="text-sm text-gray-600">${translate('status')}: ${placeDetails.business_status}</p>` : ''}
+                                            ${placeDetails.international_phone_number ? `<p class="text-sm text-gray-600">${translate('fcPhone', {default: 'Phone'})}: <a href="tel:${placeDetails.international_phone_number}" class="text-blue-600 hover:underline">${placeDetails.international_phone_number}</a></p>` : ''}
+                                            ${placeDetails.website ? `<p class="text-sm text-gray-600">${translate('fcWebsite', {default: 'Website'})}: <a href="${placeDetails.website}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline truncate">${placeDetails.website}</a></p>` : ''}
+                                            ${placeDetails.opening_hours?.weekday_text ? `<div class="text-sm text-gray-600 mt-1">${translate('fcOpeningHours', {default: 'Opening Hours'})}:<ul class="list-disc list-inside pl-2">${placeDetails.opening_hours.weekday_text.map(hour => `<li>${hour}</li>`).join('')}</ul></div>` : ''}
+                                        `;
+                                        if (directionsServiceRef.current && directionsRendererRef.current && placeDetails.geometry?.location) {
+                                            const directionsButton = document.createElement('button');
+                                            directionsButton.className = "mt-2 px-3 py-1 bg-green-500 text-white text-xs rounded hover:bg-green-600";
+                                            directionsButton.textContent = translate('fcShowRoute');
+                                            directionsButton.onclick = () => fetchDirections(placeDetails.geometry!.location!);
+                                            infoWindowContent.appendChild(directionsButton);
+                                        }
+
+                                        infoWindowRef.current = new window.google.maps.InfoWindow({ content: infoWindowContent });
+                                        infoWindowRef.current.open(mapInstanceRef.current!, marker);
+
+                                    } else {
+                                        // Fallback to basic info if details fetching fails
+                                         infoWindowContent.innerHTML = `
+                                            <h3 class="font-semibold text-md text-green-700">${p.name || 'N/A'}</h3>
+                                            <p class="text-sm text-gray-600">${p.formatted_address || translate('addressNotAvailable')}</p>
+                                         `;
+                                         if (directionsServiceRef.current && directionsRendererRef.current && p.geometry?.location) {
+                                            const directionsButton = document.createElement('button');
+                                            directionsButton.className = "mt-2 px-3 py-1 bg-green-500 text-white text-xs rounded hover:bg-green-600";
+                                            directionsButton.textContent = translate('fcShowRoute');
+                                            directionsButton.onclick = () => fetchDirections(p.geometry!.location!);
+                                            infoWindowContent.appendChild(directionsButton);
+                                        }
+                                        infoWindowRef.current = new window.google.maps.InfoWindow({ content: infoWindowContent });
+                                        infoWindowRef.current.open(mapInstanceRef.current!, marker);
+                                        console.error('Fetching place details failed:', detailsStatus);
+                                    }
+                                });
                             });
                         }
                     });
@@ -347,14 +456,50 @@ const FarmerConnectPage: React.FC = () => {
   };
 
   const handleNavigate = (place: any) => {
-    let lat, lng;
     if (place.geometry?.location) {
-      lat = typeof place.geometry.location.lat === 'function' ? place.geometry.location.lat() : place.geometry.location.lat;
-      lng = typeof place.geometry.location.lng === 'function' ? place.geometry.location.lng() : place.geometry.location.lng;
-      const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
-      window.open(url, '_blank');
+      // Call fetchDirections to show route on the map
+      fetchDirections(place.geometry.location);
+      // Optionally, center the map on the destination
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.panTo(place.geometry.location);
+      }
+    } else {
+      setError(translate('fcErrorNoLocationForRoute'));
     }
   };
+
+  // Street View rendering
+  useEffect(() => {
+    if (showStreetView && streetViewPosition && window.google?.maps?.StreetViewPanorama) {
+      const panorama = new window.google.maps.StreetViewPanorama(
+        document.getElementById('street-view')!,
+        {
+          position: streetViewPosition,
+          pov: { heading: 165, pitch: 0 },
+          zoom: 1,
+        }
+      );
+    }
+  }, [showStreetView, streetViewPosition]);
+
+  // Geofencing monitoring
+  useEffect(() => {
+    if (geofence && navigator.geolocation) {
+      const watchId = navigator.geolocation.watchPosition(pos => {
+        const dLat = geofence.center.lat - pos.coords.latitude;
+        const dLng = geofence.center.lng - pos.coords.longitude;
+        const dist = Math.sqrt(dLat * dLat + dLng * dLng) * 111139; // rough meters
+        setIsInsideGeofence(dist <= geofence.radius);
+      });
+      return () => navigator.geolocation.clearWatch(watchId);
+    }
+  }, [geofence]);
+
+  useEffect(() => {
+    if (isInsideGeofence !== null) {
+      alert(isInsideGeofence ? 'You are inside the geofence!' : 'You are outside the geofence!');
+    }
+  }, [isInsideGeofence]);
 
   if (loadingLocation && !currentLocation && !isMapApiLoaded) { // Show initial loading only if map API and location are pending
     return <div className="flex justify-center items-center h-full"><LoadingSpinner text={translate('fcMapInitializing')} size="lg"/></div>;
@@ -441,6 +586,51 @@ const FarmerConnectPage: React.FC = () => {
           </div>
         )}
       </div>
+      {/* Map Style Switcher */}
+      <div className="flex flex-wrap gap-2 mb-4 justify-center">
+        <select
+          value={mapStyle}
+          onChange={e => setMapStyle(e.target.value as 'default' | 'dark' | 'satellite')}
+          className="p-2 rounded border border-gray-300 shadow-sm"
+        >
+          <option value="default">Default</option>
+          <option value="dark">Dark</option>
+          <option value="satellite">Satellite</option>
+        </select>
+        {/* Street View Button */}
+        <button
+          className="px-4 py-2 bg-blue-500 text-white rounded shadow hover:bg-blue-600"
+          onClick={() => {
+            setStreetViewPosition(currentLocation);
+            setShowStreetView(true);
+          }}
+        >
+          Street View
+        </button>
+        {/* Geofence Button */}
+        <button
+          className="px-4 py-2 bg-purple-500 text-white rounded shadow hover:bg-purple-600"
+          onClick={() => {
+            setGeofence({ center: currentLocation, radius: 300 });
+          }}
+        >
+          Set Geofence
+        </button>
+        {/* Show Alternatives Button */}
+        <button
+          className="px-4 py-2 bg-orange-500 text-white rounded shadow hover:bg-orange-600"
+          onClick={() => setShowAlternatives(v => !v)}
+        >
+          {showAlternatives ? 'Hide' : 'Show'} Alternative Routes
+        </button>
+        {/* Favorites Button */}
+        <button
+          className="px-4 py-2 bg-green-700 text-white rounded shadow hover:bg-green-800"
+          onClick={() => setShowFavoritesModal(true)}
+        >
+          Show Favorites
+        </button>
+      </div>
       {/* Results List */}
       {results.length > 0 && (
         <Card className="mb-4 animate-fade-in">
@@ -460,6 +650,11 @@ const FarmerConnectPage: React.FC = () => {
                     {result.rating && (
                       <div className="text-xs text-yellow-600">⭐ {result.rating} ({result.user_ratings_total || 0} reviews)</div>
                     )}
+                    {result.place_id && distanceMatrixResults && (distanceMatrixResults as Record<string, { distance: string, duration: string }>)[result.place_id] && (
+                      <div className="text-sm text-gray-700 mt-1">
+                        {translate('fcDistance', { default: 'Distance' })}: {(distanceMatrixResults as Record<string, { distance: string, duration: string }>)[result.place_id].distance} | {translate('fcDuration', { default: 'Duration' })}: {(distanceMatrixResults as Record<string, { distance: string, duration: string }>)[result.place_id].duration}
+                      </div>
+                    )}
                   </div>
                   <button
                     onClick={e => { e.stopPropagation(); handleNavigate(result); }}
@@ -467,6 +662,20 @@ const FarmerConnectPage: React.FC = () => {
                     style={{ minWidth: 120 }}
                   >
                     Navigate
+                  </button>
+                  <button
+                    onClick={e => {
+                      e.stopPropagation();
+                      const favs = JSON.parse(localStorage.getItem('fcFavorites') || '[]');
+                      if (!favs.find((f: any) => f.place_id === result.place_id)) {
+                        favs.push(result);
+                        localStorage.setItem('fcFavorites', JSON.stringify(favs));
+                        setFavorites(favs);
+                      }
+                    }}
+                    className="ml-2 px-2 py-1 bg-yellow-400 text-white rounded text-xs hover:bg-yellow-500"
+                  >
+                    Save
                   </button>
                 </div>
               </li>
@@ -500,6 +709,69 @@ const FarmerConnectPage: React.FC = () => {
             <svg className="w-7 h-7 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14.752 11.168l-9.456 3.181a1 1 0 00-.362 1.686l7.07 7.07a1 1 0 001.686-.362l3.181-9.456a1 1 0 00-1.119-1.119z" /></svg>
             Navigate with Google Maps
           </button>
+        </div>
+      )}
+      {showStreetView && streetViewPosition && (
+        <div className="fixed inset-0 z-50 bg-black bg-opacity-80 flex flex-col items-center justify-center">
+          <div className="w-full max-w-3xl h-[60vh] bg-white rounded shadow-lg relative">
+            <button
+              className="absolute top-2 right-2 bg-red-500 text-white px-3 py-1 rounded"
+              onClick={() => setShowStreetView(false)}
+            >
+              Close
+            </button>
+            <div id="street-view" className="w-full h-full rounded" />
+          </div>
+        </div>
+      )}
+      {showFavoritesModal && (
+        <div className="fixed inset-0 z-50 bg-black bg-opacity-60 flex items-center justify-center">
+          <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-md relative">
+            <button
+              className="absolute top-2 right-2 bg-red-500 text-white px-3 py-1 rounded"
+              onClick={() => setShowFavoritesModal(false)}
+            >
+              Close
+            </button>
+            <h3 className="text-xl font-bold mb-4 text-green-700">Favorites</h3>
+            {favorites.length === 0 ? (
+              <div className="text-gray-500">No favorites saved.</div>
+            ) : (
+              <ul className="divide-y divide-green-100 max-h-80 overflow-y-auto">
+                {favorites.map((fav, idx) => (
+                  <li key={fav.place_id} className="p-3 flex items-center justify-between">
+                    <div className="flex-1 cursor-pointer" onClick={() => {
+                      setShowFavoritesModal(false);
+                      setCurrentLocation({ lat: fav.geometry.location.lat, lng: fav.geometry.location.lng });
+                      if (mapInstanceRef.current) {
+                        mapInstanceRef.current.panTo({ lat: fav.geometry.location.lat, lng: fav.geometry.location.lng });
+                        mapInstanceRef.current.setZoom(16);
+                      }
+                    }}>
+                      <div className="font-semibold text-green-800">{fav.name}</div>
+                      <div className="text-sm text-gray-600">{fav.formatted_address}</div>
+                    </div>
+                    <button
+                      className="ml-2 px-2 py-1 bg-red-400 text-white rounded text-xs hover:bg-red-500"
+                      onClick={e => {
+                        e.stopPropagation();
+                        const newFavs = favorites.filter(f => f.place_id !== fav.place_id);
+                        setFavorites(newFavs);
+                        localStorage.setItem('fcFavorites', JSON.stringify(newFavs));
+                      }}
+                    >
+                      Remove
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      )}
+      {loadingRoute && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-30">
+          <div className="bg-white px-6 py-4 rounded shadow text-green-700 font-bold text-lg">Loading route...</div>
         </div>
       )}
     </div>

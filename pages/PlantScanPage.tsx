@@ -3,23 +3,14 @@ import ImageUploader from '../components/ImageUploader';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Card from '../components/Card';
 import Alert from '../components/Alert';
-import TTSControls from '../components/TTSControls';
 import { PlantDiagnosis, ScanResult } from '../types';
 import { diagnosePlant } from '../services/geminiService';
 import { addScanResult } from '../services/localStorageService';
 import { useLanguage } from '../contexts/LanguageContext';
 import { MdMic, MdMicOff } from 'react-icons/md';
-import { PLANT_LIST, PLANT_CATEGORIES } from '../constants';
+import { PLANT_LIST } from '../constants';
 import { FaSearch } from 'react-icons/fa';
 import RelatedYouTubeVideo from '../components/RelatedYouTubeVideo';
-
-const LANGUAGE_OPTIONS = [
-  { code: 'en-US', label: 'English' },
-  { code: 'hi-IN', label: 'Hindi' },
-  { code: 'kn-IN', label: 'Kannada' },
-  { code: 'te-IN', label: 'Telugu' },
-  { code: 'ta-IN', label: 'Tamil' },
-];
 
 const PlantScanPage: React.FC = () => {
   const [imageBase64, setImageBase64] = useState<string | null>(null);
@@ -28,7 +19,7 @@ const PlantScanPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [customPrompt, setCustomPrompt] = useState<string>("");
-  const { translate, language } = useLanguage();
+  const { translate} = useLanguage();
   const [detectedLang, setDetectedLang] = useState<string>('en');
   const [isRecording, setIsRecording] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);

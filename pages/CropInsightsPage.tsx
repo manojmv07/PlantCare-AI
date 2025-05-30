@@ -2,16 +2,17 @@ import React, { useState, useCallback, useEffect, useRef } from 'react';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Card from '../components/Card';
 import Alert from '../components/Alert';
-import { CropInsight, WeatherData, FarmingAdvice } from '../types';
-import { getCropInsights, getWeatherBasedAdvice } from '../services/geminiService';
+import { CropInsight, WeatherData, FarmingAdvice, FertPestQuantitiesAIResponse } from '../types';
+import { getCropInsights, getWeatherBasedAdvice, getFertPestQuantitiesAI } from '../services/geminiService';
 import { fetchWeather } from '../services/weatherService';
 import { KARNATAKA_DISTRICTS, MONTHS, COMMON_CROPS } from '../constants';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend, LineChart, Line } from 'recharts';
-import { FaCheckCircle, FaTimesCircle, FaExclamationTriangle, FaLightbulb, FaDownload, FaShareAlt, FaCopy, FaMoon, FaSun } from 'react-icons/fa';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, Legend, LineChart, Line } from 'recharts';
+import { FaCheckCircle, FaTimesCircle, FaExclamationTriangle, FaLightbulb, FaDownload } from 'react-icons/fa';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
-import { WhatsappShareButton, WhatsappIcon } from 'react-share';
+import { WhatsappIcon } from 'react-share';
 import Confetti from 'react-confetti';
+import { fetchYouTubeThumbnails } from '../services/youtubeThumbnails';
 
 // Expanded mapping of districts to major cities/towns (now with more towns)
 const DISTRICT_CITIES: Record<string, string[]> = {
@@ -49,6 +50,47 @@ const DISTRICT_CITIES: Record<string, string[]> = {
 
 const COLORS = ["#34d399", "#fbbf24", "#60a5fa", "#f87171", "#a78bfa", "#f472b6", "#38bdf8", "#facc15", "#4ade80", "#f472b6"];
 
+// Fertilizer and pesticide mapping for common crops
+const FERT_PEST_RECOMMENDATIONS: Record<string, { fertilizers: string[]; pesticides: string[] }> = {
+  "Rice": {
+    fertilizers: ["Urea (N)", "DAP (P)", "MOP (K)", "Zinc Sulphate"],
+    pesticides: ["Cartap Hydrochloride", "Chlorantraniliprole", "Buprofezin"]
+  },
+  "Wheat": {
+    fertilizers: ["Urea", "SSP", "MOP", "Micronutrients"],
+    pesticides: ["Imidacloprid", "Mancozeb", "Propiconazole"]
+  },
+  "Maize": {
+    fertilizers: ["Urea", "DAP", "MOP", "Boron"],
+    pesticides: ["Carbofuran", "Atrazine", "Cypermethrin"]
+  },
+  "Tomato": {
+    fertilizers: ["NPK 19:19:19", "Calcium Nitrate", "Compost"],
+    pesticides: ["Imidacloprid", "Mancozeb", "Spinosad"]
+  },
+  "Potato": {
+    fertilizers: ["Urea", "DAP", "Potash", "Gypsum"],
+    pesticides: ["Chlorpyrifos", "Mancozeb", "Metalaxyl"]
+  },
+  "Banana": {
+    fertilizers: ["Urea", "MOP", "FYM", "Micronutrients"],
+    pesticides: ["Carbofuran", "Chlorpyrifos", "Copper Oxychloride"]
+  },
+  "Sugarcane": {
+    fertilizers: ["Urea", "DAP", "MOP", "Zinc Sulphate"],
+    pesticides: ["Imidacloprid", "Chlorpyrifos", "Carbendazim"]
+  },
+  "Cotton": {
+    fertilizers: ["Urea", "SSP", "MOP", "Micronutrients"],
+    pesticides: ["Imidacloprid", "Quinalphos", "Carbendazim"]
+  },
+  "Groundnut": {
+    fertilizers: ["Gypsum", "SSP", "Potash", "Boron"],
+    pesticides: ["Chlorpyrifos", "Mancozeb", "Hexaconazole"]
+  },
+  // ... add more crops as needed ...
+};
+
 const CombinedInsightsPage: React.FC = () => {
   const [selectedDistrict, setSelectedDistrict] = useState<string>(KARNATAKA_DISTRICTS[0]);
   const [city, setCity] = useState<string>(DISTRICT_CITIES[KARNATAKA_DISTRICTS[0]] ? DISTRICT_CITIES[KARNATAKA_DISTRICTS[0]][0] : KARNATAKA_DISTRICTS[0]);
@@ -56,6 +98,7 @@ const CombinedInsightsPage: React.FC = () => {
   const [selectedMonth, setSelectedMonth] = useState<string>(MONTHS[new Date().getMonth()]);
   const [selectedCrop, setSelectedCrop] = useState<string>("");
   const [customCrop, setCustomCrop] = useState<string>("");
+  const [acres, setAcres] = useState<string>("");
   const [insights, setInsights] = useState<CropInsight | null>(null);
   const [weather, setWeather] = useState<WeatherData | null>(null);
   const [aiAdvice, setAIAdvice] = useState<FarmingAdvice | null>(null);
@@ -65,6 +108,10 @@ const CombinedInsightsPage: React.FC = () => {
   const [showConfetti, setShowConfetti] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(false);
   const insightRef = useRef<HTMLDivElement>(null);
+  const [aiFertPestQuantities, setAiFertPestQuantities] = useState<FertPestQuantitiesAIResponse | null>(null);
+  const [aiFertPestLoading, setAiFertPestLoading] = useState<boolean>(false);
+  const [youtubeThumbs, setYoutubeThumbs] = useState<{title: string, thumbnail: string, videoId: string}[]>([]);
+  const [youtubeLoading, setYoutubeLoading] = useState(false);
 
   // Update city dropdown when district changes
   useEffect(() => {
@@ -96,13 +143,13 @@ const CombinedInsightsPage: React.FC = () => {
     setWeather(null);
     setAIAdvice(null);
     setHasFetched(false);
-
+    setAiFertPestQuantities(null);
+    setAiFertPestLoading(false);
     // Fetch weather and crop insights in parallel
     const [weatherResult, cropResult] = await Promise.all([
       fetchWeather(cityValue),
       getCropInsights(selectedDistrict, selectedMonth)
     ]);
-
     if ('error' in weatherResult) {
       setError(weatherResult.error);
       setIsLoading(false);
@@ -115,7 +162,6 @@ const CombinedInsightsPage: React.FC = () => {
     }
     setWeather(weatherResult);
     setInsights(cropResult);
-
     // Compose a context string for the AI
     const cropContext = cropResult.suitableCrops && cropResult.suitableCrops.length > 0
       ? `The most suitable crops for ${selectedDistrict} in ${selectedMonth} are: ${cropResult.suitableCrops.join(', ')}.`
@@ -128,9 +174,24 @@ const CombinedInsightsPage: React.FC = () => {
     });
     const aiAdviceResult = await getWeatherBasedAdvice(weatherJson, `${cropContext} Current city: ${weatherResult.city}${cropValue ? ", User is interested in: " + cropValue : ""}`);
     setAIAdvice(aiAdviceResult);
+    // AI-powered fertilizer/pesticide quantities
+    if (cropValue && acres && !isNaN(parseFloat(acres)) && parseFloat(acres) > 0) {
+      setAiFertPestLoading(true);
+      const fertPestResult = await getFertPestQuantitiesAI(
+        cropValue,
+        selectedDistrict,
+        selectedMonth,
+        weatherResult,
+        parseFloat(acres)
+      );
+      setAiFertPestQuantities(fertPestResult);
+      setAiFertPestLoading(false);
+    } else {
+      setAiFertPestQuantities(null);
+    }
     setIsLoading(false);
     setHasFetched(true);
-  }, [selectedDistrict, selectedMonth, city, customCity, selectedCrop, customCrop]);
+  }, [selectedDistrict, selectedMonth, city, customCity, selectedCrop, customCrop, acres]);
 
   // Helper for crop chips
   const cropEmoji = (crop: string) => {
@@ -184,12 +245,6 @@ const CombinedInsightsPage: React.FC = () => {
       color: insights.suitableCrops && insights.suitableCrops.includes(crop) ? COLORS[idx % COLORS.length] : '#d1d5db',
     })) : [];
 
-  // Pie chart for crop suitability
-  const pieChartData = insights && insights.suitableCrops ? [
-    { name: 'Suitable', value: insights.suitableCrops.length, color: '#34d399' },
-    { name: 'Other', value: (insights.allCrops ? insights.allCrops.length : 0) - insights.suitableCrops.length, color: '#fbbf24' },
-  ] : [];
-
   // Mocked historical weather data (for demo)
   const historicalWeather = weather ? [
     { month: 'Jan', temp: 22, rain: 2 },
@@ -224,7 +279,7 @@ const CombinedInsightsPage: React.FC = () => {
     const imgProps = pdf.getImageProperties(imgData);
     const pdfWidth = pageWidth - 40;
     const imgHeight = (imgProps.height * pdfWidth) / imgProps.width;
-    let position = 20;
+
     let remainingHeight = imgHeight;
     if (imgHeight < pageHeight - 40) {
       pdf.addImage(imgData, 'PNG', 20, 20, pdfWidth, imgHeight);
@@ -266,8 +321,25 @@ const CombinedInsightsPage: React.FC = () => {
     setPdfLoading(false);
   };
 
-  const shareUrl = typeof window !== 'undefined' ? window.location.href : '';
   const shareText = `Check out these AI-powered crop & weather insights for ${getCityValue()}, ${selectedDistrict} (${selectedMonth})!`;
+
+  useEffect(() => {
+    const crop = getCropValue();
+    if (crop && selectedDistrict) {
+      setYoutubeLoading(true);
+      // 1st: crop farming in district, 2nd: district Karnataka
+      Promise.all([
+        fetchYouTubeThumbnails(`${crop} farming in ${selectedDistrict} Karnataka`, 1),
+        fetchYouTubeThumbnails(`${selectedDistrict} district Karnataka`, 1)
+      ]).then(results => {
+        setYoutubeThumbs([...(results[0] || []), ...(results[1] || [])]);
+        setYoutubeLoading(false);
+      }).catch(() => setYoutubeLoading(false));
+    } else {
+      setYoutubeThumbs([]);
+    }
+    // eslint-disable-next-line
+  }, [selectedCrop, customCrop, selectedDistrict]);
 
   return (
     <div className="bg-white min-h-screen">
@@ -385,6 +457,19 @@ const CombinedInsightsPage: React.FC = () => {
                   />
                 )}
               </div>
+              <div>
+                <label htmlFor="acres-input" className="block text-sm font-medium text-gray-700 mb-1">Acres</label>
+                <input
+                  id="acres-input"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={acres}
+                  onChange={e => setAcres(e.target.value)}
+                  placeholder="e.g. 2.5"
+                  className="w-full p-3 border border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500"
+                />
+              </div>
               <button
                 onClick={fetchAll}
                 disabled={isLoading || !selectedDistrict || !selectedMonth || !getCityValue()}
@@ -430,7 +515,7 @@ const CombinedInsightsPage: React.FC = () => {
                       <BarChart layout="vertical" data={cropChartData} margin={{ top: 30, right: 40, left: 120, bottom: 30 }} barCategoryGap={12}>
                         <XAxis type="number" hide domain={[0, 1]} />
                         <YAxis dataKey="name" type="category" tick={{ fontSize: 18, fontWeight: 600 }} width={180} interval={0} />
-                        <Tooltip formatter={(value, name, props) => value === 1 ? 'Suitable' : 'Other'} labelFormatter={name => `Crop: ${name}`} />
+                        <Tooltip formatter={(value) => value === 1 ? 'Suitable' : 'Other'} labelFormatter={name => `Crop: ${name}`} />
                         <Bar dataKey="value" radius={[8, 8, 8, 8]} minPointSize={12} maxBarSize={32}>
                           {cropChartData.map((entry, idx) => (
                             <Cell key={`cell-${idx}`} fill={entry.value === 1 ? '#34d399' : '#d1d5db'} />
@@ -443,6 +528,32 @@ const CombinedInsightsPage: React.FC = () => {
                   <div className="text-gray-500 text-center py-8">No crop data available for this city/district/month.</div>
                 )}
               </div>
+              {/* YouTube Thumbnails Section (INSIDE Crop Insights Card) */}
+              {youtubeLoading && (
+                <div className="flex justify-center my-4"><LoadingSpinner text="Loading YouTube images..." /></div>
+              )}
+              {youtubeThumbs.length > 0 && (
+                <div className="flex justify-center gap-4 my-4">
+                  {youtubeThumbs.map((yt, idx) => (
+                    <a
+                      key={yt.videoId}
+                      href={`https://www.youtube.com/watch?v=${yt.videoId}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title={yt.title}
+                    >
+                      <img
+                        src={yt.thumbnail}
+                        alt={yt.title}
+                        className="rounded-lg shadow-md object-cover"
+                        style={{ width: 220, height: 140 }}
+                        loading="lazy"
+                      />
+                    </a>
+                  ))}
+                </div>
+              )}
+              {/* End YouTube Thumbnails Section */}
               <div className="grid md:grid-cols-2 gap-4 mb-4">
                 <div className="flex flex-col items-center justify-center">
                   {insights.suitableCrops && insights.suitableCrops.length > 0 && (
@@ -485,6 +596,44 @@ const CombinedInsightsPage: React.FC = () => {
                   <Line yAxisId="right" type="monotone" dataKey="rain" stroke="#34d399" name="Rain (mm)" strokeWidth={3} />
                 </LineChart>
               </ResponsiveContainer>
+            </Card>
+          )}
+          {/* Fertilizer and Pesticide Suggestions */}
+          {hasFetched && getCropValue() && acres && parseFloat(acres) > 0 && (
+            <Card className="mb-8 bg-gradient-to-br from-yellow-50 via-green-50 to-blue-50 border-2 border-yellow-300 animate-fade-in">
+              <h3 className="text-xl font-bold text-yellow-700 mb-2 flex items-center gap-2">🧪 Fertilizer & 🛡️ Pesticide Suggestions for <span className="ml-1 text-green-700">{getCropValue()}</span></h3>
+              {aiFertPestLoading && <LoadingSpinner text="Fetching AI-powered fertilizer & pesticide recommendations..." />}
+              {aiFertPestQuantities && !aiFertPestQuantities.error && (
+                <div className="grid md:grid-cols-2 gap-6">
+                  <div>
+                    <h4 className="text-lg font-semibold text-green-700 mb-1">Recommended Fertilizers:</h4>
+                    <ul className="list-disc ml-6 space-y-1">
+                      {aiFertPestQuantities.fertilizers.map((f, i) => (
+                        <li key={i} className="bg-green-100 rounded px-3 py-1 inline-block mb-1 text-green-900 font-medium shadow animate-fade-in">
+                          {f.name} <span className="text-xs text-gray-500">({f.per_acre} {f.unit}/acre × {acres} acre{parseFloat(acres) > 1 ? 's' : ''} = <b>{f.total}</b> {f.unit})</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div>
+                    <h4 className="text-lg font-semibold text-blue-700 mb-1">Recommended Pesticides:</h4>
+                    <ul className="list-disc ml-6 space-y-1">
+                      {aiFertPestQuantities.pesticides.map((p, i) => (
+                        <li key={i} className="bg-blue-100 rounded px-3 py-1 inline-block mb-1 text-blue-900 font-medium shadow animate-fade-in">
+                          {p.name} <span className="text-xs text-gray-500">({p.per_acre} {p.unit}/acre × {acres} acre{parseFloat(acres) > 1 ? 's' : ''} = <b>{p.total}</b> {p.unit})</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              )}
+              {aiFertPestQuantities && aiFertPestQuantities.error && (
+                <Alert type="error" message={`AI Fertilizer/Pesticide Error: ${aiFertPestQuantities.error}`} />
+              )}
+              {!aiFertPestQuantities && !aiFertPestLoading && (
+                <div className="text-gray-500 text-center py-4">No AI-powered fertilizer/pesticide data available. Please enter crop and acres.</div>
+              )}
+              <div className="mt-3 text-gray-600 text-sm">* Always follow local agricultural guidelines and consult an expert for dosage and application schedule.</div>
             </Card>
           )}
           {/* AI Combined Recommendation Section */}
