@@ -17,6 +17,7 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageUpload, idSuffix =
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const { translate } = useLanguage();
   const errorId = `uploader-error-${idSuffix}`;
+  const uploaderRef = useRef<HTMLDivElement>(null);
 
   // Attempt to focus the dropzone on mount to help with paste UX
   useEffect(() => {
@@ -33,8 +34,8 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageUpload, idSuffix =
       setPreviewUrl(null);
       return false;
     }
-    if (file.size > 5 * 1024 * 1024) { // Limit file size (e.g., 5MB)
-       setError(translate('errorFileSize', { default: 'File size exceeds 5MB. Please choose a smaller image.'}));
+    if (file.size > 30 * 1024 * 1024) { // Limit file size (e.g., 30MB)
+       setError(translate('errorFileSize', { default: 'File size exceeds 30MB. Please choose a smaller image.'}));
        setPreviewUrl(null);
        return false;
     }
@@ -78,41 +79,36 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageUpload, idSuffix =
     }
   }, [onImageUpload, translate]);
 
-  const handlePaste = useCallback(async (event: ClipboardEvent) => {
+  const handlePaste = useCallback(async (event: Event) => {
+    const clipboardEvent = event as ClipboardEvent;
     const activeElement = document.activeElement;
-    // If the user is focused on an input or textarea, assume paste is for that element.
     if (activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA')) {
-        // Check if the focused input is part of this uploader; if so, let it handle.
-        // This check is a bit broad. If specific inputs within uploader need text paste, 
-        // they should stop propagation.
-        if (dropzoneRef.current && dropzoneRef.current.contains(activeElement)) {
-            // Potentially an input inside the uploader, but not the dropzone itself. Let it be.
-        } else {
-            return; // Paste is likely intended for the focused input/textarea elsewhere.
-        }
+      if (dropzoneRef.current && dropzoneRef.current.contains(activeElement)) {
+        // Potentially an input inside the uploader, but not the dropzone itself. Let it be.
+      } else {
+        return;
+      }
     }
-
-    const items = event.clipboardData?.items;
+    const items = clipboardEvent.clipboardData?.items;
     if (!items) return;
-
     for (let i = 0; i < items.length; i++) {
       if (items[i].type.indexOf('image') !== -1) {
         const file = items[i].getAsFile();
         if (file) {
           if(processFile(file)) {
-            event.preventDefault(); 
+            clipboardEvent.preventDefault();
             return;
           }
         }
       }
     }
-  }, [onImageUpload, translate]); // processFile dependency added
+  }, [onImageUpload, translate]);
 
   useEffect(() => {
     if (enablePaste) {
-      document.addEventListener('paste', handlePaste as EventListener);
+      document.addEventListener('paste', handlePaste);
       return () => {
-        document.removeEventListener('paste', handlePaste as EventListener);
+        document.removeEventListener('paste', handlePaste);
       };
     }
   }, [handlePaste, enablePaste]);
@@ -139,8 +135,30 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageUpload, idSuffix =
     }
   }
 
+  useEffect(() => {
+    const handlePaste = (e: ClipboardEvent) => {
+      if (document.activeElement !== uploaderRef.current) return;
+      const items = e.clipboardData?.items;
+      if (items) {
+        for (let i = 0; i < items.length; i++) {
+          const item = items[i];
+          if (item.type.indexOf('image') !== -1) {
+            const file = item.getAsFile();
+            if (file) {
+              processFile(file);
+              e.preventDefault();
+              break;
+            }
+          }
+        }
+      }
+    };
+    document.addEventListener('paste', handlePaste);
+    return () => document.removeEventListener('paste', handlePaste);
+  }, [processFile]);
+
   return (
-    <div className="w-full">
+    <div className="w-full" ref={uploaderRef} tabIndex={0}>
       <label
         htmlFor={`file-upload-${idSuffix}`}
         ref={dropzoneRef}
@@ -219,6 +237,7 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageUpload, idSuffix =
           {translate('clearImage')}
         </button>
       )}
+      <div className="text-xs text-gray-400 mt-2">Tip: You can also paste an image here (Ctrl+V)</div>
     </div>
   );
 };

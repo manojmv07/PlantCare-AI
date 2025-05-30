@@ -22,4 +22,9 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
-"plantcare-backend/google-tts.json" 
+"plantcare-backend/google-tts.json"
+
+.env
+
+# Local env files
+.env.local

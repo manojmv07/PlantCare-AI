@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>PlantCare AI</title>
-  <link rel="icon" href="/logo.png" type="image/png">
+  <link rel="icon" href="/fav.png" type="image/png">
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -71,24 +71,9 @@
   }
 }
 </script>
-  <!-- 
-    IMPORTANT: Google Maps API Key Security
-    The API key below is included directly for simplicity in this frontend-only example.
-    In a production environment, you MUST secure your API key. 
-    Consider:
-    1. Restricting the key in Google Cloud Console (HTTP referrers, API restrictions).
-    2. Using a backend proxy to handle API requests so the key is not exposed client-side.
-    Failure to secure your key can lead to unauthorized use and potential billing charges.
-  -->
-  <script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAeBCGa945cf-cDJJ3g2rmwPGupF5GK83k&libraries=places,marker,routes,visualization&callback=initMap" loading="async"></script>
-  <script>
-    function initMap() {
-      console.log("[PlantCareAI] Google Maps API script has executed and 'initMap' callback is now running.");
-      console.log("[PlantCareAI] Dispatching 'google-maps-loaded' event.");
-      window.dispatchEvent(new CustomEvent('google-maps-loaded'));
-      console.log("[PlantCareAI] 'google-maps-loaded' event dispatched.");
-    }
-  </script>
+  <!-- Google Maps API script will be injected dynamically in index.tsx -->
+  <!-- <script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAeBCGa945cf-cDJJ3g2rmwPGupF5GK83k&libraries=places,marker,routes,visualization&callback=initMap" loading="async"></script> -->
+  <!-- <script> ...initMap... </script> -->
 </head>
 <body class="bg-green-50 min-h-screen">
   <div id="root"></div>

@@ -64,53 +64,127 @@ const ScanHistoryPage: React.FC = () => {
       </p>
 
       <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {history.map((scan) => (
+        {history.map((scan) => {
+          const d = scan.diagnosis;
+          const statusColors = {
+            Healthy: 'bg-green-400 text-white',
+            Diseased: 'bg-red-400 text-white',
+            NeedsAttention: 'bg-yellow-300 text-yellow-900',
+            Unknown: 'bg-gray-300 text-gray-700',
+          };
+          return (
           <Card 
             key={scan.id} 
-            title={`Scan: ${new Date(scan.timestamp).toLocaleDateString()}`}
             onClick={() => viewScanDetails(scan)}
-            className="transform hover:scale-105 transition-transform duration-300 relative"
+              className={`transform hover:scale-105 transition-transform duration-300 relative overflow-visible bg-gradient-to-br from-green-50 via-lime-50 to-yellow-50 border-2 border-green-200 shadow-xl animate-fade-in`}
           >
-            <button onClick={e => { e.stopPropagation(); handleDelete(scan.id); }} className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition-colors" title="Delete">
+              <button onClick={e => { e.stopPropagation(); handleDelete(scan.id); }} className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition-colors z-20" title="Delete">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
             </button>
-            <img src={scan.imagePreviewUrl} alt="Scanned plant" className="w-full h-48 object-cover rounded-md mb-4" />
-            <p className="text-sm text-gray-600 mb-1"><strong>Condition:</strong> {scan.diagnosis.condition || 'N/A'}</p>
-            <p className="text-sm text-gray-600"><strong>Disease:</strong> {scan.diagnosis.diseaseName || 'N/A'}</p>
+              <div className="flex items-center gap-3 mb-3">
+                <span className="text-3xl drop-shadow-lg">{d.plantEmoji || '🪴'}</span>
+                <span className="text-lg font-bold text-green-800 truncate">{d.plantName || 'Unknown Plant'}</span>
+                {typeof d.plantConfidencePercent === 'number' && (
+                  <span className="ml-2 inline-block px-2 py-0.5 rounded-full text-xs font-semibold bg-green-500 text-white animate-pulse">{d.plantConfidencePercent}%</span>
+                )}
+              </div>
+              <img src={scan.imagePreviewUrl} alt="Scanned plant" className="w-full h-40 object-cover rounded-md mb-3 border border-green-100 shadow" />
+              <div className="flex flex-wrap gap-2 mb-2">
+                {d.statusTag && (
+                  <span className={`px-3 py-1 rounded-full text-xs font-bold shadow ${statusColors[d.statusTag] || 'bg-gray-200 text-gray-700'} animate-glow`}>{d.statusTag}</span>
+                )}
+                {d.diseaseName && d.diseaseName !== 'N/A' && (
+                  <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-red-100 text-red-700 font-semibold text-xs shadow animate-pulse">
+                    <svg className="w-4 h-4 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18.364 5.636l-1.414 1.414M6.343 17.657l-1.414 1.415M5.636 5.636l1.414 1.414m11.314 11.314l1.414 1.415M12 8v4l3 3" /></svg>
+                    {d.diseaseName}
+                  </span>
+                )}
+              </div>
+              {typeof d.plantConfidencePercent === 'number' && (
+                <div className="w-full h-2 bg-green-100 rounded-full mb-2">
+                  <div className="h-2 rounded-full bg-gradient-to-r from-green-400 via-lime-400 to-yellow-300 transition-all duration-700" style={{ width: `${d.plantConfidencePercent}%` }}></div>
+                </div>
+              )}
+              <div className="text-sm text-gray-700 mb-1"><strong>Date:</strong> {new Date(scan.timestamp).toLocaleDateString()}</div>
+              <div className="text-sm text-green-700 mb-1">
+                <strong>Care Tip:</strong> {Array.isArray(d.careSuggestions) && d.careSuggestions.length > 0 ? d.careSuggestions[0] : (typeof d.careSuggestions === 'string' ? d.careSuggestions.split('\n')[0] : 'N/A')}
+              </div>
           </Card>
-        ))}
+          );
+        })}
       </div>
 
-      {selectedScan && (
-        <Modal isOpen={isModalOpen} onClose={closeModal} title={`Scan Details - ${new Date(selectedScan.timestamp).toLocaleString()}`} size="lg">
+      {selectedScan && (() => {
+        const d = selectedScan.diagnosis;
+        const statusColors = {
+          Healthy: 'bg-green-500 text-white',
+          Diseased: 'bg-red-500 text-white',
+          NeedsAttention: 'bg-yellow-400 text-yellow-900',
+          Unknown: 'bg-gray-400 text-white',
+        };
+        return (
+          <Modal isOpen={isModalOpen} onClose={closeModal} title={
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">{d.plantEmoji || '🪴'}</span>
+              <span className="font-bold text-green-800 text-xl">{d.plantName || 'Unknown Plant'}</span>
+              <span className="text-gray-500 text-base">({new Date(selectedScan.timestamp).toLocaleString()})</span>
+            </div>
+          } size="lg">
           <div className="grid md:grid-cols-2 gap-6">
             <div>
               <h4 className="text-lg font-semibold text-green-700 mb-2">Scanned Image</h4>
-              <img src={selectedScan.imagePreviewUrl} alt="Scanned plant" className="w-full rounded-lg shadow-md object-contain max-h-96" />
+                <img src={selectedScan.imagePreviewUrl} alt="Scanned plant" className="w-full rounded-lg shadow-md object-contain max-h-96 border border-green-200" />
             </div>
             <div>
               <h4 className="text-lg font-semibold text-green-700 mb-2">AI Diagnosis</h4>
-              <div className="space-y-2 text-gray-700">
-                <p><strong>Condition:</strong> {selectedScan.diagnosis.condition || 'N/A'}</p>
-                <p><strong>Disease/Issue:</strong> {selectedScan.diagnosis.diseaseName || 'N/A'}</p>
+                <div className="space-y-3 text-gray-700">
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    {d.statusTag && (
+                      <span className={`px-4 py-1 rounded-full text-sm font-bold shadow ${statusColors[d.statusTag] || 'bg-gray-200 text-gray-700'} animate-glow`}>{d.statusTag}</span>
+                    )}
+                    {d.diseaseName && d.diseaseName !== 'N/A' && (
+                      <span className="inline-flex items-center gap-1 px-4 py-1 rounded-full bg-red-100 text-red-700 font-semibold text-sm shadow animate-pulse">
+                        <svg className="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18.364 5.636l-1.414 1.414M6.343 17.657l-1.414 1.415M5.636 5.636l1.414 1.414m11.314 11.314l1.414 1.415M12 8v4l3 3" /></svg>
+                        {d.diseaseName}
+                      </span>
+                    )}
+                  </div>
+                  {typeof d.plantConfidencePercent === 'number' && (
+                    <div className="mb-2">
+                      <span className="text-green-700 font-semibold">Plant ID Confidence:</span>
+                      <div className="w-full h-3 bg-green-100 rounded-full mt-1">
+                        <div className="h-3 rounded-full bg-gradient-to-r from-green-400 via-lime-400 to-yellow-300 transition-all duration-700" style={{ width: `${d.plantConfidencePercent}%` }}></div>
+                      </div>
+                      <span className="text-green-800 font-bold ml-2">{d.plantConfidencePercent}%</span>
+                    </div>
+                  )}
+                  {typeof d.confidencePercent === 'number' && (
+                    <div className="mb-2">
+                      <span className="text-blue-700 font-semibold">Diagnosis Confidence:</span>
+                      <div className="w-full h-3 bg-blue-100 rounded-full mt-1">
+                        <div className="h-3 rounded-full bg-gradient-to-r from-blue-400 via-cyan-400 to-green-300 transition-all duration-700" style={{ width: `${d.confidencePercent}%` }}></div>
+                      </div>
+                      <span className="text-blue-700 font-bold ml-2">{d.confidencePercent}%</span>
+                    </div>
+                  )}
+                  <div><strong>Condition:</strong> {d.condition || 'N/A'}</div>
+                  <div><strong>Disease/Issue:</strong> {d.diseaseName || 'N/A'}</div>
                 <div>
                   <strong>Care Suggestions:</strong>
                   {(() => {
-                    const suggestionsValue = selectedScan.diagnosis.careSuggestions;
+                      const suggestionsValue = d.careSuggestions;
                     if (suggestionsValue && suggestionsValue !== "N/A") {
                       const itemsArray = Array.isArray(suggestionsValue)
                         ? suggestionsValue
                         : (typeof suggestionsValue === 'string' ? suggestionsValue.split('\n') : []);
-
                       const processedItems = itemsArray
                         .map(item => String(item).trim().replace(/^- /, '')) 
                         .filter(item => item); 
-
                       if (processedItems.length > 0) {
                         return (
                           <ul className="list-disc list-inside ml-4 mt-1 space-y-1">
                             {processedItems.map((item, index) => (
-                              <li key={`sugg-hist-${index}`}>{item}</li>
+                                <li key={`sugg-hist-modal-${index}`}>{item}</li>
                             ))}
                           </ul>
                         );
@@ -119,16 +193,17 @@ const ScanHistoryPage: React.FC = () => {
                     return <span className="ml-1">N/A</span>;
                   })()}
                 </div>
-                <p><strong>Confidence:</strong> {selectedScan.diagnosis.confidenceLevel || 'N/A'}</p>
-                {selectedScan.diagnosis.error && <Alert type="error" message={`AI Response Error: ${selectedScan.diagnosis.error}`} />}
-                <p className="text-xs text-gray-500 mt-2">
+                  <div><strong>Confidence Level:</strong> {d.confidenceLevel || 'N/A'}</div>
+                  {d.error && <Alert type="error" message={`AI Response Error: ${d.error}`} />}
+                  <div className="text-xs text-gray-500 mt-2">
                   <strong>Original Prompt:</strong> {selectedScan.originalPrompt}
-                </p>
+                  </div>
               </div>
             </div>
           </div>
         </Modal>
-      )}
+        );
+      })()}
 
       {showClearConfirm && (
         <Modal isOpen={showClearConfirm} onClose={cancelClearAll} title="Clear All History?">

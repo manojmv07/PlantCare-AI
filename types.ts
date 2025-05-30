@@ -1,9 +1,12 @@
-
 export interface PlantDiagnosis {
+  plantName?: string; // Most likely plant species or common name
+  plantEmoji?: string; // Emoji for the plant
+  plantConfidencePercent?: number; // Confidence in plant identification (0-100)
   condition: string;
   diseaseName: string;
   careSuggestions: string[] | string; // Can be an array for bullet points or a single string
   confidenceLevel: string;
+  confidencePercent?: number; // Confidence in disease diagnosis (0-100)
   statusTag?: 'Healthy' | 'Diseased' | 'NeedsAttention' | 'Unknown'; // For UI styling
   error?: string; // Error message from Gemini or parsing
 }
@@ -32,6 +35,7 @@ export interface CropInsight {
   suitableCrops: string[];
   tips: string;
   climatePatterns: string;
+  allCrops?: string[];
   error?: string;
 }
 

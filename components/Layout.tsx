@@ -59,7 +59,6 @@ const navItems: NavItem[] = [
   { path: '/scan', translationKey: 'navPlantScan', icon: <ScanIcon /> },
   { path: '/encyclopedia', translationKey: 'navEncyclopedia', icon: <BookIcon /> },
   { path: '/crop-insights', translationKey: 'navCropInsights', icon: <MapIcon /> },
-  { path: '/weather-advisor', translationKey: 'navWeatherAdvisor', icon: <CloudIcon /> },
   { path: '/history', translationKey: 'navScanHistory', icon: <HistoryIcon /> },
   { path: '/community', translationKey: 'navCommunityHub', icon: <UsersIcon /> },
   { path: '/farmer-connect', translationKey: 'navFarmerConnect', icon: <FarmerConnectIcon /> },

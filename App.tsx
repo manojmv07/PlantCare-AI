@@ -10,7 +10,6 @@ import LandingPage from './pages/LandingPage.tsx';
 import PlantScanPage from './pages/PlantScanPage.tsx';
 import EncyclopediaPage from './pages/EncyclopediaPage.tsx';
 import CropInsightsPage from './pages/CropInsightsPage.tsx';
-import WeatherAdvisorPage from './pages/WeatherAdvisorPage.tsx';
 import ScanHistoryPage from './pages/ScanHistoryPage.tsx';
 import CommunityHubPage from './pages/CommunityHubPage.tsx';
 import FarmerConnectPage from './pages/FarmerConnectPage.tsx'; // New Page
@@ -26,7 +25,6 @@ const App: React.FC = () => {
               <Route path="/scan" element={<PlantScanPage />} />
               <Route path="/encyclopedia" element={<EncyclopediaPage />} />
               <Route path="/crop-insights" element={<CropInsightsPage />} />
-              <Route path="/weather-advisor" element={<WeatherAdvisorPage />} />
               <Route path="/history" element={<ScanHistoryPage />} />
               <Route path="/community" element={<CommunityHubPage />} />
               <Route path="/farmer-connect" element={<FarmerConnectPage />} /> {/* New Route */}

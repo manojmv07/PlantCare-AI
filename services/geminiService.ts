@@ -12,16 +12,28 @@ const ai = new GoogleGenAI({ apiKey: API_KEY! });
 
 const parseJsonFromGeminiResponse = <T,>(text: string): T | { error: string } => {
   let jsonStr = text.trim();
-  const fenceRegex = /^```(\w*)?\s*\n?(.*?)\n?\s*```$/s;
-  const match = jsonStr.match(fenceRegex);
-  if (match && match[2]) {
-    jsonStr = match[2].trim();
+  // Remove code fences if present
+  const fenceRegex = /^```(json)?\s*\n?([\s\S]*?)\n?```$/i;
+  const fenceMatch = jsonStr.match(fenceRegex);
+  if (fenceMatch && fenceMatch[2]) {
+    jsonStr = fenceMatch[2].trim();
+  }
+  // Try to extract the first JSON object from the text, even if multiple are present
+  const jsonMatches = [...jsonStr.matchAll(/\{[\s\S]*?\}/g)];
+  if (jsonMatches && jsonMatches.length > 0) {
+    jsonStr = jsonMatches[0][0];
+  } else {
+    // fallback: try to extract the first JSON array
+    const arrayMatch = jsonStr.match(/\[[\s\S]*?\]/);
+    if (arrayMatch) {
+      jsonStr = arrayMatch[0];
+    }
   }
   try {
     return JSON.parse(jsonStr) as T;
   } catch (e) {
     console.error("Failed to parse JSON response:", e, "Original text:", text);
-    return { error: "Failed to parse AI response. The response might not be valid JSON." };
+    return { error: `Failed to parse AI response. The response might not be valid JSON.\n---\n${text}` };
   }
 };
 
@@ -50,12 +62,16 @@ export const diagnosePlant = async (imageBase64: string, mimeType: string, custo
       },
     };
     const basePrompt = `You are a plant health expert. Analyze the attached plant image. Respond ONLY in JSON format with these keys:
-1. "condition": (string, e.g., "Healthy", "Diseased", "Needs Attention", "Unknown").
-2. "statusTag": (string, one of "Healthy", "Diseased", "NeedsAttention", "Unknown"). This should correspond to the condition.
-3. "diseaseName": (string, specific disease/issue if any, or "N/A").
-4. "careSuggestions": (array of strings, practical, actionable tips as bullet points. If "Healthy" or "Unknown", provide general care tips or state "N/A").
-5. "confidenceLevel": (string, e.g., "High", "Medium", "Low", or "N/A if not a plant").
-If the image is not a plant, set condition to "Unknown", statusTag to "Unknown", and other relevant fields to "N/A".`;
+1. "plantName": (string, the most likely plant species or common name, e.g., "Mango", "Apple", "Rose". If unknown, say "Unknown").
+2. "plantEmoji": (string, a relevant emoji for the plant, e.g., "🥭" for Mango, "🍎" for Apple, "🌹" for Rose, or "🪴" if unknown).
+3. "plantConfidencePercent": (number, 0-100, your confidence in the plant identification).
+4. "condition": (string, e.g., "Healthy", "Diseased", "Needs Attention", "Unknown").
+5. "statusTag": (string, one of "Healthy", "Diseased", "NeedsAttention", "Unknown"). This should correspond to the condition.
+6. "diseaseName": (string, specific disease/issue if any, or "N/A").
+7. "careSuggestions": (array of strings, practical, actionable tips as bullet points. If "Healthy" or "Unknown", provide general care tips or state "N/A").
+8. "confidenceLevel": (string, e.g., "High", "Medium", "Low", or "N/A if not a plant").
+9. "confidencePercent": (number, 0-100, your confidence in the disease diagnosis).
+Respond with ONLY ONE JSON object. Do NOT return multiple objects or extra text. Do NOT repeat the keys. If the image is not a plant, set plantName to "Unknown", plantEmoji to "🪴", plantConfidencePercent to 0, condition to "Unknown", statusTag to "Unknown", and other relevant fields to "N/A".`;
     const textPart = {
       text: customPrompt ? `${customPrompt} ${basePrompt}` : basePrompt,
     };
@@ -77,6 +93,8 @@ If the image is not a plant, set condition to "Unknown", statusTag to "Unknown",
     if (!Array.isArray(diagnosis.careSuggestions)) {
         diagnosis.careSuggestions = diagnosis.careSuggestions ? [String(diagnosis.careSuggestions)] : [];
     }
+    if (diagnosis.confidencePercent) diagnosis.confidencePercent = Number(diagnosis.confidencePercent);
+    if (diagnosis.plantConfidencePercent) diagnosis.plantConfidencePercent = Number(diagnosis.plantConfidencePercent);
     return diagnosis;
   } catch (error) {
     console.error("Error diagnosing plant:", error);
@@ -115,10 +133,10 @@ export const getEncyclopediaEntry = async (plantName: string): Promise<Encyclope
 };
 
 export const getCropInsights = async (district: string, month: string): Promise<CropInsight> => {
-  const defaultReturn: CropInsight = { district, month, suitableCrops:[], tips:"", climatePatterns:"" };
+  const defaultReturn: CropInsight = { district, month, suitableCrops:[], tips:"", climatePatterns:"", allCrops:[] };
   if (!API_KEY) return { ...defaultReturn, error: "API Key not configured." };
   try {
-    const prompt = `For ${district} district in Karnataka, during the month of ${month}, what are the most suitable crops to grow? Respond ONLY in JSON format with keys: "district" (string), "month" (string), "suitableCrops" (array of strings), "tips" (string, general farming tips for these crops in this context), "climatePatterns" (string, typical climate patterns for this district and month).`;
+    const prompt = `For ${district} district in Karnataka, during the month of ${month}, what are the most suitable crops to grow? Respond ONLY in JSON format with keys: "district" (string), "month" (string), "suitableCrops" (array of strings), "allCrops" (array of all major crops grown in this district/month, not just suitable ones), "tips" (string, general farming tips for these crops in this context), "climatePatterns" (string, typical climate patterns for this district and month).`;
     
     const response: GenerateContentResponse = await ai.models.generateContent({
       model: GEMINI_TEXT_MODEL,
@@ -129,6 +147,10 @@ export const getCropInsights = async (district: string, month: string): Promise<
 
     if (!('suitableCrops' in parsedResult)) { // 'suitableCrops' is a key in CropInsight.
       return { ...defaultReturn, error: (parsedResult as { error: string }).error || "AI service returned an unspecified error." };
+    }
+    // Ensure allCrops is present and is an array
+    if (!('allCrops' in parsedResult) || !Array.isArray((parsedResult as any).allCrops)) {
+      (parsedResult as any).allCrops = [ ...(parsedResult as any).suitableCrops ];
     }
     return parsedResult as CropInsight;
 

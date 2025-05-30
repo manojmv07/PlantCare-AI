@@ -11,6 +11,7 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { MdMic, MdMicOff } from 'react-icons/md';
 import { PLANT_LIST, PLANT_CATEGORIES } from '../constants';
 import { FaSearch } from 'react-icons/fa';
+import RelatedYouTubeVideo from '../components/RelatedYouTubeVideo';
 
 const LANGUAGE_OPTIONS = [
   { code: 'en-US', label: 'English' },
@@ -322,7 +323,7 @@ const PlantScanPage: React.FC = () => {
                   <div>or drag and drop</div>
                   <div>or paste image from clipboard</div>
                   <div>or <span className="text-blue-600 underline cursor-pointer">use camera</span></div>
-                  <div>PNG, JPG, GIF up to 5MB</div>
+                  <div>PNG, JPG, GIF up to 30MB</div>
                 </div>
               </div>
               <div>
@@ -464,49 +465,106 @@ const PlantScanPage: React.FC = () => {
       )}
       {isLoading && !diagnosis && <LoadingSpinner text={translate('analyzingPlant')} />}
       {diagnosis && (
-        <Card title={translate('aiDiagnosisTitle')}>
-          <div className="space-y-3">
-            <div>
-              <strong className="text-green-700 capitalize">{translate('status')}:</strong>
-              <span className={`ml-2 px-3 py-1 text-sm font-semibold rounded-full ${getStatusTagColor(diagnosis.statusTag)}`}>
-                {getStatusTagText(diagnosis.statusTag)}
+        <Card title={translate('aiDiagnosisTitle')} className="overflow-visible bg-gradient-to-br from-green-100 via-lime-100 to-yellow-50 shadow-2xl border-2 border-green-300">
+          <div className="space-y-6">
+            {/* Plant Identification Section */}
+            <div className="flex items-center gap-4 p-4 rounded-xl bg-gradient-to-r from-green-200 via-lime-100 to-yellow-100 shadow-inner border border-green-300 mb-2 animate-fade-in">
+              <span className="text-5xl drop-shadow-lg">
+                {diagnosis.plantEmoji || '🪴'}
               </span>
-            </div>
-            {diagnosis.diseaseName && diagnosis.diseaseName !== "N/A" && (
-              <div>
-                <strong className="text-green-700 capitalize">{translate('diseaseIssue')}:</strong>
-                <p className="text-gray-700">{diagnosis.diseaseName}</p>
+              <div className="flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-2xl font-bold text-green-800 tracking-wide">
+                    {diagnosis.plantName || 'Unknown Plant'}
+                  </span>
+                  {diagnosis.plantConfidencePercent !== undefined && (
+                    <span className="inline-block px-3 py-1 rounded-full text-xs font-semibold bg-green-500 text-white animate-pulse ml-2">
+                      {diagnosis.plantConfidencePercent}% sure
+                    </span>
+                  )}
+                </div>
+                {diagnosis.plantConfidencePercent !== undefined && (
+                  <div className="w-full h-2 bg-green-200 rounded-full mt-2">
+                    <div
+                      className="h-2 rounded-full bg-gradient-to-r from-green-400 via-lime-400 to-yellow-300 transition-all duration-700"
+                      style={{ width: `${diagnosis.plantConfidencePercent}%` }}
+                    ></div>
+                  </div>
+                )}
               </div>
-            )}
+            </div>
+            {/* Status & Disease Section */}
+            <div className="flex flex-wrap items-center gap-4">
+              <div className="flex items-center gap-2">
+                <span className={`px-4 py-2 rounded-full text-lg font-bold shadow ${getStatusTagColor(diagnosis.statusTag)} animate-glow`}>{getStatusTagText(diagnosis.statusTag)}</span>
+              </div>
+              {diagnosis.diseaseName && diagnosis.diseaseName !== "N/A" && (
+                <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-red-100 text-red-700 font-semibold shadow animate-pulse">
+                  <svg className="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18.364 5.636l-1.414 1.414M6.343 17.657l-1.414 1.415M5.636 5.636l1.414 1.414m11.314 11.314l1.414 1.415M12 8v4l3 3" /></svg>
+                  {diagnosis.diseaseName}
+                </span>
+              )}
+            </div>
+            {/* Care Suggestions */}
             {diagnosis.careSuggestions && (Array.isArray(diagnosis.careSuggestions) ? diagnosis.careSuggestions.length > 0 : diagnosis.careSuggestions !== "N/A") && (
-              <div>
-                <strong className="text-green-700 capitalize">{translate('careSuggestions')}:</strong>
+              <div className="bg-white/80 rounded-xl p-4 shadow-inner border border-green-100 animate-fade-in">
+                <strong className="block text-green-700 capitalize mb-2 text-lg">{translate('careSuggestions')}:</strong>
                 {Array.isArray(diagnosis.careSuggestions) ? (
-                  <ul className="list-disc list-inside ml-4 mt-1 space-y-1 text-gray-700">
-                    {diagnosis.careSuggestions.map((item, index) => item.trim() && <li key={index}>{item.trim()}</li>)}
+                  <ul className="list-disc list-inside ml-4 mt-1 space-y-1 text-green-900">
+                    {diagnosis.careSuggestions.map((item, index) => item.trim() && <li key={index} className="pl-1">{item.trim()}</li>)}
                   </ul>
                 ) : (
-                  <p className="text-gray-700 whitespace-pre-line">{diagnosis.careSuggestions}</p>
+                  <p className="text-green-900 whitespace-pre-line">{diagnosis.careSuggestions}</p>
                 )}
               </div>
             )}
-            {diagnosis.confidenceLevel && diagnosis.confidenceLevel !== "N/A" && (
-               <div>
-                <strong className="text-green-700 capitalize">{translate('confidence')}:</strong>
-                <p className="text-gray-700">{diagnosis.confidenceLevel}</p>
+            {/* Confidence Section */}
+            {(diagnosis.confidenceLevel && diagnosis.confidenceLevel !== "N/A") || diagnosis.confidencePercent !== undefined ? (
+              <div className="flex items-center gap-4 mt-2">
+                <div className="flex flex-col items-start">
+                  <span className="text-green-700 font-semibold">{translate('confidence')}:</span>
+                  {diagnosis.confidenceLevel && (
+                    <span className="inline-block px-3 py-1 rounded-full text-xs font-semibold bg-blue-500 text-white mt-1 animate-pulse">
+                      {diagnosis.confidenceLevel}
+                    </span>
+                  )}
+                </div>
+                {diagnosis.confidencePercent !== undefined && (
+                  <div className="flex flex-col items-start">
+                    <span className="text-green-700 font-semibold">Diagnosis Confidence:</span>
+                    <div className="flex items-center gap-2 mt-1">
+                      <div className="w-32 h-3 bg-blue-200 rounded-full overflow-hidden">
+                        <div
+                          className="h-3 rounded-full bg-gradient-to-r from-blue-400 via-cyan-400 to-green-300 transition-all duration-700"
+                          style={{ width: `${diagnosis.confidencePercent}%` }}
+                        ></div>
+                      </div>
+                      <span className="text-blue-700 font-bold text-lg ml-2">{diagnosis.confidencePercent}%</span>
+                    </div>
+                  </div>
+                )}
               </div>
-            )}
+            ) : null}
             {diagnosis.error && <Alert type="warning" message={`${translate('aiResponseWarning')}: ${diagnosis.error}`} />}
+            <div className="flex justify-center mt-6">
+              <button
+                onClick={() => speakWithCloudTTS(diagnosisTextForTTS, selectedLang, 'answer')}
+                className={`p-3 rounded-full shadow-lg border-2 border-blue-400 bg-gradient-to-r from-blue-400 via-cyan-300 to-green-200 text-white hover:scale-110 transition-transform animate-fade-in`}
+                title="Speak answer"
+                aria-label="Speak answer"
+              >
+                <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.348a1.125 1.125 0 010 1.971l-11.54 6.347a1.125 1.125 0 01-1.667-.985V5.653z" /></svg>
+              </button>
+            </div>
           </div>
-          <button
-            onClick={() => speakWithCloudTTS(diagnosisTextForTTS, selectedLang, 'answer')}
-            className={`mt-4 p-2 rounded-full ${speakActive === 'answer' ? 'bg-yellow-400 text-white' : 'bg-blue-500 text-white hover:bg-blue-600'} transition-colors`}
-            title="Speak answer"
-            aria-label="Speak answer"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.348a1.125 1.125 0 010 1.971l-11.54 6.347a1.125 1.125 0 01-1.667-.985V5.653z" /></svg>
-          </button>
         </Card>
+      )}
+      {/* --- YouTube Video Section --- */}
+      {diagnosis && (
+        <div className="mt-8 flex flex-col items-center justify-center">
+          <h3 className="text-2xl font-bold text-green-700 mb-4 animate-fade-in">Related YouTube Video</h3>
+          <RelatedYouTubeVideo plantName={diagnosis.plantName || selectedPlant || ''} diseaseName={diagnosis.diseaseName} />
+        </div>
       )}
     </div>
   );
