@@ -11,6 +11,22 @@ import { MdMic, MdMicOff } from 'react-icons/md';
 import { PLANT_LIST } from '../constants';
 import { FaSearch } from 'react-icons/fa';
 import RelatedYouTubeVideo from '../components/RelatedYouTubeVideo';
+import { getCachedTranslation, isTextInExpectedScript } from '../utils/googleTranslate';
+
+// Add supported languages for translation (expanded)
+const TRANSLATE_LANGS = [
+  { code: 'kn', label: 'Kannada', tts: 'kn-IN', voiceName: 'kn-IN-Chirp3-HD-Achird' },
+  { code: 'hi', label: 'Hindi', tts: 'hi-IN', voiceName: 'hi-IN-Wavenet-A' },
+  { code: 'ta', label: 'Tamil', tts: 'ta-IN', voiceName: 'ta-IN-Wavenet-A' },
+  { code: 'te', label: 'Telugu', tts: 'te-IN', voiceName: 'te-IN-Standard-A' },
+  { code: 'bn', label: 'Bengali', tts: 'bn-IN', voiceName: 'bn-IN-Standard-A' },
+  { code: 'mr', label: 'Marathi', tts: 'mr-IN', voiceName: 'mr-IN-Standard-A' },
+  { code: 'gu', label: 'Gujarati', tts: 'gu-IN', voiceName: 'gu-IN-Standard-A' },
+  { code: 'ml', label: 'Malayalam', tts: 'ml-IN', voiceName: 'ml-IN-Standard-A' },
+  { code: 'pa', label: 'Punjabi', tts: 'pa-IN', voiceName: 'pa-IN-Standard-A' },
+  { code: 'ur', label: 'Urdu', tts: 'ur-IN', voiceName: 'ur-IN-Standard-A' },
+  { code: 'or', label: 'Oriya', tts: 'or-IN', voiceName: 'or-IN-Standard-A' },
+];
 
 const PlantScanPage: React.FC = () => {
   const [imageBase64, setImageBase64] = useState<string | null>(null);
@@ -34,6 +50,18 @@ const PlantScanPage: React.FC = () => {
   const [activeCategory, setActiveCategory] = useState<string>('All Plants');
   const [selectedPlant, setSelectedPlant] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
+
+  // Ref for SpeechRecognition instance
+  const recognitionRef = useRef<any>(null);
+
+  // TTS controls
+  const [ttsUtterance, setTtsUtterance] = useState<SpeechSynthesisUtterance | null>(null);
+  const [ttsPaused, setTtsPaused] = useState(false);
+  const [ttsSpeaking, setTtsSpeaking] = useState(false);
+  const [translateTarget, setTranslateTarget] = useState('en');
+  const [translatedAnswer, setTranslatedAnswer] = useState('');
+  const [isTranslating, setIsTranslating] = useState(false);
+  const [translatedScriptOk, setTranslatedScriptOk] = useState(true);
 
   // --- Plant Picker Logic ---
   const mainCategories = [
@@ -91,7 +119,18 @@ const PlantScanPage: React.FC = () => {
     setError(null);
     setDiagnosis(null);
 
-    const result = await diagnosePlant(imageBase64, imageFile.type, customPrompt);
+    let promptToSend = customPrompt;
+    if (activeCategory === 'Unknown Plant') {
+      promptToSend = `
+        Identify the plant or leaf in this image. Respond ONLY in JSON format with keys: 
+        "plantName", "plantEmoji", "plantConfidencePercent", "condition", "statusTag", 
+        "diseaseName", "careSuggestions" (array of strings), "confidenceLevel".
+        Be as specific as possible and only guess if you are reasonably sure.
+        If you are not sure, say "Unknown" for plantName and set plantConfidencePercent to 0.
+      `;
+    }
+
+    const result = await diagnosePlant(imageBase64, imageFile.type, promptToSend);
     
     if (result.error && !result.condition) { // Prioritize error if no condition is present
       setError(result.error);
@@ -153,90 +192,138 @@ const PlantScanPage: React.FC = () => {
     }
   }
 
-  // --- Speech-to-Text (STT) ---
+  // --- Speech-to-Text (STT) using browser SpeechRecognition ---
   const handleToggleRecording = async () => {
+    const SpeechRecognitionClass = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognitionClass) {
+      setError('Speech recognition is not supported in this browser.');
+      return;
+    }
     if (isRecording) {
-      if (mediaRecorderRef.current) {
-        mediaRecorderRef.current.stop();
-        mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
+      setIsRecording(false);
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
       }
       return;
     }
     setIsRecording(true);
-    audioChunksRef.current = [];
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      let mimeType = '';
-      if (MediaRecorder.isTypeSupported('audio/wav')) {
-        mimeType = 'audio/wav';
-      } else if (MediaRecorder.isTypeSupported('audio/pcm')) {
-        mimeType = 'audio/pcm';
-      } else if (MediaRecorder.isTypeSupported('audio/webm')) {
-        mimeType = 'audio/webm';
-      } else {
-        setIsRecording(false);
-        setError('Your browser does not support audio recording in a compatible format.');
-        return;
-      }
-      const mediaRecorder = new MediaRecorder(stream, { mimeType });
-      mediaRecorderRef.current = mediaRecorder;
-      mediaRecorder.ondataavailable = (e) => {
-        if (e.data.size > 0) audioChunksRef.current.push(e.data);
-      };
-      mediaRecorder.onstop = async function onStopHandler() {
-        setIsRecording(false);
-        const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
-        const arrayBuffer = await audioBlob.arrayBuffer();
-        const base64Audio = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
-        try {
-          const res = await fetch('/api/stt', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ audioContent: base64Audio, mimeType, languageCode: selectedLang })
-          });
-          if (!res.ok) throw new Error('STT backend error');
-          const data = await res.json();
-          if (data.text) {
-            setCustomPrompt(data.text);
-            setRawSTTText(data.text);
-            setAICorrectedText("");
-          }
-          if (data.language) {
-            setDetectedLang(data.language);
-            setSTTLangDisplay(data.language);
-          }
-        } catch (err) {
-          setError('Speech recognition failed. Please try again.');
-        }
-      };
-      mediaRecorder.start();
-    } catch (err) {
+    setError(null);
+    setRawSTTText("");
+    setAICorrectedText("");
+    setCustomPrompt("");
+    const recognition = new SpeechRecognitionClass();
+    recognitionRef.current = recognition;
+    recognition.lang = selectedLang || 'en-US';
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+    recognition.onresult = (event: any) => {
+      const transcript = event.results[0][0].transcript;
+      setCustomPrompt(transcript);
+      setRawSTTText(transcript);
+      setAICorrectedText("");
+      setSTTLangDisplay(selectedLang);
       setIsRecording(false);
-      setError('Could not access microphone. Please allow mic access and try again.');
-    }
+    };
+    recognition.onerror = (event: any) => {
+      setError('Speech recognition failed: ' + event.error);
+      setIsRecording(false);
+    };
+    recognition.onend = () => {
+      setIsRecording(false);
+    };
+    recognition.start();
   };
 
-  // --- Cloud TTS ---
-  const speakWithCloudTTS = async (text: string, lang: string, which: 'question' | 'answer') => {
+  // TTS controls
+  const pauseTTS = () => {
+    if (window.speechSynthesis.speaking && !window.speechSynthesis.paused) {
+      window.speechSynthesis.pause();
+      setTtsPaused(true);
+    }
+  };
+  const resumeTTS = () => {
+    if (window.speechSynthesis.paused) {
+      window.speechSynthesis.resume();
+      setTtsPaused(false);
+    }
+  };
+  const stopTTS = () => {
+    window.speechSynthesis.cancel();
+    setTtsPaused(false);
+    setTtsSpeaking(false);
+    setTtsUtterance(null);
+  };
+
+  // Modified TTS function to use state
+  const speakWithCloudTTS = async (text: string, lang: string, which: 'question' | 'answer', voiceName?: string) => {
     if (!text) return;
     setSpeakActive(which);
-    try {
-      const res = await fetch('/api/speak', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text, languageCode: lang })
-      });
-      const data = await res.json();
-      if (data.audioContent) {
-        const audio = new Audio('data:audio/mp3;base64,' + data.audioContent);
-        audio.onended = () => setSpeakActive(null);
-        audio.play();
-      } else {
+    if (!('speechSynthesis' in window) && !voiceName) {
+      setSpeakActive(null);
+      setError('Text-to-speech is not supported in this browser.');
+      return;
+    }
+    stopTTS();
+    // Use backend TTS if voiceName is provided
+    if (voiceName) {
+      try {
+        const res = await fetch('/api/speak', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text, languageCode: lang, voiceName })
+        });
+        const data = await res.json();
+        if (data.audioContent) {
+          const audio = new Audio('data:audio/mp3;base64,' + data.audioContent);
+          audio.onended = () => setSpeakActive(null);
+          audio.play();
+        } else {
+          setSpeakActive(null);
+        }
+      } catch {
         setSpeakActive(null);
       }
-    } catch {
-      setSpeakActive(null);
+      return;
     }
+    // Fallback to browser TTS if no voiceName
+    const utterance = new window.SpeechSynthesisUtterance(text);
+    utterance.lang = lang || 'en-US';
+    utterance.onend = () => {
+      setSpeakActive(null);
+      setTtsSpeaking(false);
+      setTtsPaused(false);
+      setTtsUtterance(null);
+    };
+    utterance.onerror = () => {
+      setSpeakActive(null);
+      setTtsSpeaking(false);
+      setTtsPaused(false);
+      setTtsUtterance(null);
+    };
+    setTtsUtterance(utterance);
+    setTtsSpeaking(true);
+    setTtsPaused(false);
+    window.speechSynthesis.speak(utterance);
+  };
+
+  // Translation function using Google Translate
+  const translateText = async (text: string, target: string) => {
+    setIsTranslating(true);
+    setTranslatedAnswer('');
+    setTranslatedScriptOk(true);
+    try {
+      const { translated, scriptOk } = await getCachedTranslation(text, target);
+      setTranslatedAnswer(translated);
+      setTranslatedScriptOk(scriptOk);
+      if (!scriptOk) {
+        setError('Translation may not be in the correct script for this language. TTS is disabled. Try again or check your translation settings.');
+      } else {
+        setError(null);
+      }
+    } catch (e) {
+      setError('Translation failed.');
+    }
+    setIsTranslating(false);
   };
 
   // AI Prompt for sentence correction
@@ -265,6 +352,52 @@ const PlantScanPage: React.FC = () => {
       setError('AI prompt correction failed.');
     }
     setTimeout(() => setAIPromptActive(false), 1000);
+  };
+
+  // Improved TTS for translated answers
+  const speakTranslated = (text: string, langCode: string) => {
+    if (!('speechSynthesis' in window)) {
+      setError('Text-to-speech is not supported in this browser.');
+      return;
+    }
+    stopTTS();
+    const voices = window.speechSynthesis.getVoices();
+    // Try to find all matching voices for the language
+    let ttsLang = TRANSLATE_LANGS.find(l => l.code === langCode)?.tts || 'en-US';
+    let matchingVoices = voices.filter(v => v.lang === ttsLang || v.lang.startsWith(langCode));
+    if (matchingVoices.length === 0 && ttsLang.includes('-')) {
+      // Try base language
+      matchingVoices = voices.filter(v => v.lang.startsWith(ttsLang.split('-')[0]));
+    }
+    let voice = matchingVoices[0];
+    if (!voice) {
+      setError('No suitable TTS voice found for this language on your device. Falling back to English.');
+      const englishVoice = voices.find(v => v.lang.startsWith('en'));
+      if (!englishVoice) {
+        setError('No English TTS voice found either. TTS not available.');
+        return;
+      }
+      voice = englishVoice;
+    }
+    const utterance = new window.SpeechSynthesisUtterance(text);
+    utterance.lang = voice.lang;
+    utterance.voice = voice;
+    utterance.onend = () => {
+      setSpeakActive(null);
+      setTtsSpeaking(false);
+      setTtsPaused(false);
+      setTtsUtterance(null);
+    };
+    utterance.onerror = () => {
+      setSpeakActive(null);
+      setTtsSpeaking(false);
+      setTtsPaused(false);
+      setTtsUtterance(null);
+    };
+    setTtsUtterance(utterance);
+    setTtsSpeaking(true);
+    setTtsPaused(false);
+    window.speechSynthesis.speak(utterance);
   };
 
   return (
@@ -537,15 +670,95 @@ const PlantScanPage: React.FC = () => {
               </div>
             ) : null}
             {diagnosis.error && <Alert type="warning" message={`${translate('aiResponseWarning')}: ${diagnosis.error}`} />}
-            <div className="flex justify-center mt-6">
-              <button
-                onClick={() => speakWithCloudTTS(diagnosisTextForTTS, selectedLang, 'answer')}
-                className={`p-3 rounded-full shadow-lg border-2 border-blue-400 bg-gradient-to-r from-blue-400 via-cyan-300 to-green-200 text-white hover:scale-110 transition-transform animate-fade-in`}
-                title="Speak answer"
-                aria-label="Speak answer"
-              >
-                <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.348a1.125 1.125 0 010 1.971l-11.54 6.347a1.125 1.125 0 01-1.667-.985V5.653z" /></svg>
-              </button>
+            {/* TTS and Translation Controls */}
+            <div className="flex flex-col items-center gap-2 mt-4">
+              <div className="flex gap-2">
+                <button
+                  onClick={() => speakWithCloudTTS(diagnosisTextForTTS, selectedLang, 'answer')}
+                  className={`p-2 rounded-full ${speakActive === 'answer' ? 'bg-yellow-400 text-white' : 'bg-blue-500 text-white hover:bg-blue-600'} transition-colors`}
+                  title="Speak answer"
+                  aria-label="Speak answer"
+                  disabled={ttsSpeaking}
+                >
+                  ▶️ Speak
+                </button>
+                <button
+                  onClick={pauseTTS}
+                  className="p-2 rounded-full bg-gray-300 text-gray-700 hover:bg-gray-400"
+                  disabled={!ttsSpeaking || ttsPaused}
+                  title="Pause TTS"
+                >⏸️ Pause</button>
+                <button
+                  onClick={resumeTTS}
+                  className="p-2 rounded-full bg-gray-300 text-gray-700 hover:bg-gray-400"
+                  disabled={!ttsSpeaking || !ttsPaused}
+                  title="Resume TTS"
+                >▶️ Resume</button>
+                <button
+                  onClick={stopTTS}
+                  className="p-2 rounded-full bg-gray-300 text-gray-700 hover:bg-gray-400"
+                  disabled={!ttsSpeaking}
+                  title="Stop TTS"
+                >⏹️ Stop</button>
+              </div>
+              <div className="flex gap-2 items-center mt-2">
+                <label htmlFor="translateTarget" className="text-sm font-medium">Translate to:</label>
+                <select
+                  id="translateTarget"
+                  value={translateTarget}
+                  onChange={e => setTranslateTarget(e.target.value)}
+                  className="p-1 rounded border border-gray-300"
+                >
+                  {TRANSLATE_LANGS.map(lang => (
+                    <option key={lang.code} value={lang.code}>{lang.label}</option>
+                  ))}
+                </select>
+                <button
+                  onClick={() => translateText(diagnosisTextForTTS, translateTarget)}
+                  className="p-2 rounded bg-green-500 text-white hover:bg-green-600"
+                  disabled={isTranslating}
+                >{isTranslating ? 'Translating...' : 'Translate'}</button>
+              </div>
+              {translatedAnswer && (
+                <div className="mt-2 p-3 bg-white border border-green-200 rounded shadow w-full max-w-xl">
+                  {/* Script warning */}
+                  {!translatedScriptOk && (
+                    <div className="mb-2 p-2 bg-yellow-100 text-yellow-800 rounded text-sm">
+                      Warning: The translated text may not be in the correct script for this language. TTS is disabled. Try again or check your translation settings.
+                    </div>
+                  )}
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="font-semibold">Translated Answer:</span>
+                    <button
+                      onClick={() => {
+                        const langObj = TRANSLATE_LANGS.find(l => l.code === translateTarget);
+                        speakWithCloudTTS(translatedAnswer, langObj?.tts || 'en-US', 'answer', langObj?.voiceName);
+                      }}
+                      className="ml-2 p-1 rounded bg-blue-400 text-white hover:bg-blue-600"
+                      disabled={ttsSpeaking || !translatedScriptOk}
+                    >▶️ Speak</button>
+                    <button
+                      onClick={pauseTTS}
+                      className="p-1 rounded bg-gray-300 text-gray-700 hover:bg-gray-400"
+                      disabled={!ttsSpeaking || ttsPaused}
+                      title="Pause TTS"
+                    >⏸️ Pause</button>
+                    <button
+                      onClick={resumeTTS}
+                      className="p-1 rounded bg-gray-300 text-gray-700 hover:bg-gray-400"
+                      disabled={!ttsSpeaking || !ttsPaused}
+                      title="Resume TTS"
+                    >▶️ Resume</button>
+                    <button
+                      onClick={stopTTS}
+                      className="p-1 rounded bg-gray-300 text-gray-700 hover:bg-gray-400"
+                      disabled={!ttsSpeaking}
+                      title="Stop TTS"
+                    >⏹️ Stop</button>
+                  </div>
+                  <div className="text-gray-800 whitespace-pre-line">{translatedAnswer}</div>
+                </div>
+              )}
             </div>
           </div>
         </Card>
