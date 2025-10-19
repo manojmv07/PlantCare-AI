@@ -9,7 +9,7 @@ app.use(cors());
 app.use(bodyParser.json({ limit: '10mb' }));
 app.use(bodyParser.urlencoded({ limit: '10mb', extended: true }));
 
-const translationApiKey = 'AIzaSyAeBCGa945cf-cDJJ3g2rmwPGupF5GK83k';
+const translationApiKey = 'AIzaSyBaPW9f5Xpy3fh8YODCMQKQbNW99jKNjFQ';
 
 // Google TTS client
 const ttsClient = new textToSpeech.TextToSpeechClient({

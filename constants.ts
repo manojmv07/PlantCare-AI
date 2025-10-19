@@ -1,5 +1,5 @@
 export const APP_NAME = "PlantCare AI";
-export const APP_AUTHORS = "Gaganashree, Mithun, and Shahabaz";
+export const APP_AUTHORS = "Mithun R, Manoj M V, Veghana N Gowda and Shahabaz";
 
 export const KARNATAKA_DISTRICTS: string[] = [
   "Bagalkot", "Ballari (Bellary)", "Belagavi (Belgaum)", "Bengaluru Rural", 
